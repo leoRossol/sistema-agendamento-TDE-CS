@@ -1,6 +1,7 @@
 package com.sistema.agendamento.sistema_agendamento.entity;
 
 import jakarta.persistence.*;
+import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.annotation.CreatedDate;
@@ -61,7 +62,4 @@ public class Usuario {
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<Notificacao> notificacoes;
     
-    public enum TipoUsuario {
-        ADMIN, PROFESSOR, ALUNO, COORDENACAO
-    }
 }
