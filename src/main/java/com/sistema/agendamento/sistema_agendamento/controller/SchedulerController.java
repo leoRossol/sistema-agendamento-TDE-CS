@@ -25,15 +25,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.EventoResponse;
-import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.WaitlistRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.WaitlistResponse;
+import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.EventoResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.WaitlistRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.WaitlistResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Evento;
 import com.sistema.agendamento.sistema_agendamento.enums.StatusEventos;
 import com.sistema.agendamento.sistema_agendamento.service.SchedulerService;
 import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.SchedulerConflict;
+import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.WaitlistResult;
 
 @RestController
 @RequestMapping("/scheduler")
@@ -59,7 +60,7 @@ public class SchedulerController {
     }
 
     @PostMapping("/eventos")
-    public ResponseEntity<?> criar(@RequestBody CreateEventoRequest body) {
+    public ResponseEntity<?> criar(@RequestBody CreateEventoRequestDTO body) {
         try {
             Evento e = schedulerService.criarEvento(body);
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(e));
@@ -83,7 +84,7 @@ public class SchedulerController {
     }
 
     @PutMapping("/eventos/{id}")
-    public ResponseEntity<?> atualizar(@PathVariable("id") Long id, @RequestBody CreateEventoRequest body) {
+    public ResponseEntity<?> atualizar(@PathVariable("id") Long id, @RequestBody CreateEventoRequestDTO body) {
         try {
             Evento e = schedulerService.atualizarEvento(id, body);
             return ResponseEntity.ok(toResponse(e));
@@ -111,7 +112,7 @@ public class SchedulerController {
 
     // US-12: Gerenciar eventos (PATCH) — cancelar/editar somente se ownerId == professorId do evento
     @PatchMapping("/eventos/{id}")
-    public ResponseEntity<?> patch(@PathVariable("id") Long id, @RequestBody UpdateEventoRequest body) {
+    public ResponseEntity<?> patch(@PathVariable("id") Long id, @RequestBody UpdateEventoRequestDTO body) {
         try {
             Evento e = schedulerService.patchEvento(id, body);
             return ResponseEntity.ok(toResponse(e));
@@ -183,12 +184,12 @@ public class SchedulerController {
 
     // US-11: Waitlist — entrar na fila
     @PostMapping("/waitlist")
-    public ResponseEntity<?> waitlist(@RequestBody WaitlistRequest req) {
+    public ResponseEntity<?> waitlist(@RequestBody WaitlistRequestDTO req) {
         try {
             var result = schedulerService.entrarNaWaitlist(req.labId, req.professorId, req.inicio, req.fim);
-            WaitlistResponse resp = new WaitlistResponse();
-            resp.id = result.id();
-            resp.position = result.position();
+            WaitlistResponseDTO resp = new WaitlistResponseDTO();
+            resp.id = ((WaitlistResult) result).id();
+            resp.position = ((WaitlistResult) result).position();
             return ResponseEntity.status(HttpStatus.CREATED).body(resp);
         } catch (IllegalArgumentException | NoSuchElementException ex) {
             return ResponseEntity.unprocessableEntity().body(Map.of(
@@ -241,8 +242,8 @@ public class SchedulerController {
         return curr;
     }
 
-    private EventoResponse toResponse(Evento e) {
-        EventoResponse r = new EventoResponse();
+    private EventoResponseDTO toResponse(Evento e) {
+        EventoResponseDTO r = new EventoResponseDTO();
         r.id = e.getId();
         r.status = e.getStatus() == null ? StatusEventos.CONFIRMADO.name() : e.getStatus().name();
         r.tipo = e.getTipoEvento() != null ? e.getTipoEvento().name() : null;

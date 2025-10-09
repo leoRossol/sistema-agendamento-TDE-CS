@@ -2,7 +2,7 @@ package com.sistema.agendamento.sistema_agendamento.dto;
 
 import java.time.LocalDateTime;
 
-public class EventoResponse {
+public class CreateEventoResponseDTO {
     public Long id;
     public String status;
     public String tipo;

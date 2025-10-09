@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
  * DTO minimalista para PATCH de eventos (edição/cancelamento) por professor dono do evento.
  * Para este escopo, usamos principalmente ownerId (professor autenticado) e status.
  */
-public class UpdateEventoRequest {
+public class UpdateEventoRequestDTO {
     public Long ownerId; // professor autenticado (deve ser o dono do evento)
     public String status; // opcional; se == "CANCELADO" realiza cancelamento
 

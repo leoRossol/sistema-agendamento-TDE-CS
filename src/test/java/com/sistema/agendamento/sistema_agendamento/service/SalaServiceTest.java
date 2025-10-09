@@ -141,7 +141,7 @@ class SalaServiceTest {
 
         assertEquals(1, itens.size());
         AgendaItemDTO item = itens.get(0);
-        assertEquals(1L, item.reservaId());
-        assertEquals(turma.getId(), item.turmaId());
+        assertEquals(1L, item.getReservaId());
+        assertEquals(turma.getId(), item.getTurmaId());
     }
 }

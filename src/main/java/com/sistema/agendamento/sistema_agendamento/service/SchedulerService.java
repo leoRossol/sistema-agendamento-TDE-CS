@@ -11,8 +11,8 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequest;
+import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.SugestaoDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Evento;
 import com.sistema.agendamento.sistema_agendamento.entity.Notificacao;
@@ -54,7 +54,7 @@ public class SchedulerService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public Evento criarEvento(CreateEventoRequest req) {
+    public Evento criarEvento(CreateEventoRequestDTO req) {
         validar(req);
 
         Usuario professor = usuarioRepository.findById(req.professorId)
@@ -145,7 +145,7 @@ public class SchedulerService {
         return eventoRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Evento não encontrado"));
     }
 
-    public Evento atualizarEvento(Long id, CreateEventoRequest req) {
+    public Evento atualizarEvento(Long id, CreateEventoRequestDTO req) {
         validar(req);
 
         Evento existente = eventoRepository.findById(id)
@@ -191,7 +191,7 @@ public class SchedulerService {
      * PATCH: gerenciamento por professor (edição simples/cancelamento) — valida owner.
      */
     @org.springframework.transaction.annotation.Transactional
-    public Evento patchEvento(Long id, UpdateEventoRequest req) {
+    public Evento patchEvento(Long id, UpdateEventoRequestDTO req) {
         Evento existente = eventoRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Evento não encontrado"));
 
@@ -280,7 +280,7 @@ public class SchedulerService {
                 .toList();
     }
 
-    private void validar(CreateEventoRequest e) {
+    private void validar(CreateEventoRequestDTO e) {
         if (!StringUtils.hasText(e.titulo)) throw new IllegalArgumentException("titulo é obrigatório");
         if (!StringUtils.hasText(e.tipoEvento)) throw new IllegalArgumentException("tipoEvento é obrigatório");
         if (e.professorId == null) throw new IllegalArgumentException("professorId é obrigatório");
@@ -292,7 +292,7 @@ public class SchedulerService {
         catch (IllegalArgumentException ex) { throw new IllegalArgumentException("tipoEvento inválido"); }
     }
 
-    private List<SugestaoDTO> sugerir(CreateEventoRequest req, Sala salaOriginal) {
+    private List<SugestaoDTO> sugerir(CreateEventoRequestDTO req, Sala salaOriginal) {
         List<SugestaoDTO> out = new ArrayList<>();
 
         // A) mesmo horário, outra sala disponível
