@@ -8,7 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "turmas")
+@Table(name = "turmas", 
+       uniqueConstraints = @UniqueConstraint(columnNames = {"codigo", "semestre", "ano"}))
 public class Turma {
     
     @Id
@@ -16,7 +17,7 @@ public class Turma {
     private Long id;
     
     @NotBlank
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, length = 20)
     private String codigo;
     
     @NotBlank

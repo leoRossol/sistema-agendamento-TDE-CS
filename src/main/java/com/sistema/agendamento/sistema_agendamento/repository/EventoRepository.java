@@ -25,6 +25,6 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
            "(e.dataInicio >= :inicio AND e.dataFim <= :fim))")
     List<Evento> findConflitosAgendamento(Sala sala, LocalDateTime inicio, LocalDateTime fim);
     
-    @Query("SELECT e FROM Evento e WHERE DATE(e.dataInicio) = CURRENT_DATE")
+    @Query("SELECT e FROM Evento e WHERE FUNCTION('DATE', e.dataInicio) = CURRENT_DATE")
     List<Evento> findEventosDeHoje();
 }
