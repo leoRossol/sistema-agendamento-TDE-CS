@@ -327,6 +327,126 @@ class SchedulerControllerTests {
     }
 
     @Test
+    void criaEvento_comLabsConjuntos_multiploTudoOuNada_201() throws Exception {
+        // cria dois labs marcados como conjunto e relacionados
+        final String SUF = "_LABS_" + (System.currentTimeMillis() % 1_000_000);
+        Long lab1Id; Long lab2Id;
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            em.createNativeQuery("""
+                INSERT INTO salas (nome, numero, capacidade, tipo_sala, ativo, descricao, eh_conjunto)
+                VALUES (?1, ?2, 40, 'LABORATORIO', TRUE, NULL, TRUE)
+            """)
+            .setParameter(1, "Lab A " + SUF)
+            .setParameter(2, "LA" + SUF)
+            .executeUpdate();
+            em.createNativeQuery("""
+                INSERT INTO salas (nome, numero, capacidade, tipo_sala, ativo, descricao, eh_conjunto)
+                VALUES (?1, ?2, 40, 'LABORATORIO', TRUE, NULL, TRUE)
+            """)
+            .setParameter(1, "Lab B " + SUF)
+            .setParameter(2, "LB" + SUF)
+            .executeUpdate();
+        });
+        Number lab1IdNum = (Number) em.createNativeQuery("SELECT id FROM salas WHERE numero LIKE ?1 ORDER BY id DESC LIMIT 1")
+                .setParameter(1, "LA" + SUF)
+                .getSingleResult();
+        Number lab2IdNum = (Number) em.createNativeQuery("SELECT id FROM salas WHERE numero LIKE ?1 ORDER BY id DESC LIMIT 1")
+                .setParameter(1, "LB" + SUF)
+                .getSingleResult();
+        lab1Id = lab1IdNum.longValue();
+        lab2Id = lab2IdNum.longValue();
+
+        // amarração no conjunto (salas_conjuntas)
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            em.createNativeQuery("INSERT INTO salas_conjuntas (sala_principal_id, sala_secundaria_id) VALUES (?1, ?2)")
+              .setParameter(1, lab1Id).setParameter(2, lab2Id).executeUpdate();
+            em.createNativeQuery("INSERT INTO salas_conjuntas (sala_principal_id, sala_secundaria_id) VALUES (?1, ?2)")
+              .setParameter(1, lab2Id).setParameter(2, lab1Id).executeUpdate();
+        });
+
+        LocalDateTime ini = LocalDateTime.now().plusHours(3).withSecond(0).withNano(0);
+        LocalDateTime fim = ini.plusHours(2);
+        Map<String, Object> payload = Map.of(
+                "tipoEvento", "AULA",
+                "titulo", "Aula Integrada",
+                "descricao", "Duas salas",
+                "professorId", professorId,
+                "turmaId", turmaId,
+                "labs", java.util.List.of(lab1Id, lab2Id),
+                "inicio", ini.toString(),
+                "fim", fim.toString()
+        );
+
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
+        ResponseEntity<String> resp = rest.postForEntity(baseUrl()+"/scheduler/eventos", req, String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // verifica que há um evento criado para cada lab
+        var evsLab1 = eventoRepository.findConflitosAgendamento(salaRepository.findById(lab1Id).orElseThrow(), ini, fim);
+        var evsLab2 = eventoRepository.findConflitosAgendamento(salaRepository.findById(lab2Id).orElseThrow(), ini, fim);
+        assertThat(evsLab1.size()).isGreaterThanOrEqualTo(1);
+        assertThat(evsLab2.size()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void criaEvento_comLabsConjuntos_confereConflitoSeQualquerOcupar_409() throws Exception {
+        // cria dois labs conjunto
+        final String SUF = "_LABS2_" + (System.currentTimeMillis() % 1_000_000);
+        Long l1; Long l2;
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            em.createNativeQuery("""
+                INSERT INTO salas (nome, numero, capacidade, tipo_sala, ativo, descricao, eh_conjunto)
+                VALUES (?1, ?2, 40, 'LABORATORIO', TRUE, NULL, TRUE)
+            """)
+            .setParameter(1, "Lab C " + SUF)
+            .setParameter(2, "LC" + SUF)
+            .executeUpdate();
+            em.createNativeQuery("""
+                INSERT INTO salas (nome, numero, capacidade, tipo_sala, ativo, descricao, eh_conjunto)
+                VALUES (?1, ?2, 40, 'LABORATORIO', TRUE, NULL, TRUE)
+            """)
+            .setParameter(1, "Lab D " + SUF)
+            .setParameter(2, "LD" + SUF)
+            .executeUpdate();
+        });
+        l1 = ((Number) em.createNativeQuery("SELECT id FROM salas WHERE numero LIKE ?1 ORDER BY id DESC LIMIT 1").setParameter(1, "LC" + SUF).getSingleResult()).longValue();
+        l2 = ((Number) em.createNativeQuery("SELECT id FROM salas WHERE numero LIKE ?1 ORDER BY id DESC LIMIT 1").setParameter(1, "LD" + SUF).getSingleResult()).longValue();
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            em.createNativeQuery("INSERT INTO salas_conjuntas (sala_principal_id, sala_secundaria_id) VALUES (?1, ?2)")
+              .setParameter(1, l1).setParameter(2, l2).executeUpdate();
+            em.createNativeQuery("INSERT INTO salas_conjuntas (sala_principal_id, sala_secundaria_id) VALUES (?1, ?2)")
+              .setParameter(1, l2).setParameter(2, l1).executeUpdate();
+        });
+
+        LocalDateTime ini = LocalDateTime.now().plusHours(4).withSecond(0).withNano(0);
+        LocalDateTime fim = ini.plusHours(1);
+
+        // Ocupa l1 nesse horário com um evento simples
+        ResponseEntity<String> ok = postEvento("AULA", "Ocupado L1", ini, fim);
+        assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // Tenta reservar os dois labs juntos -> deve conflitar por causa de l1
+        Map<String, Object> payload = Map.of(
+                "tipoEvento", "AULA",
+                "titulo", "Aula Integrada 2",
+                "descricao", "Conflito",
+                "professorId", professorId,
+                "turmaId", turmaId,
+                "labs", java.util.List.of(l1, l2),
+                "inicio", ini.toString(),
+                "fim", fim.toString()
+        );
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
+        ResponseEntity<String> resp = rest.postForEntity(baseUrl()+"/scheduler/eventos", req, String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
     void calendarioAluno_agora_retornaAtualEProximaComSala() throws Exception {
         // cria um aluno e matricula na turma criada no setup
         final String SUF = "_ALUNO_" + (System.currentTimeMillis() % 1_000_000);

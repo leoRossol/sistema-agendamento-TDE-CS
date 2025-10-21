@@ -171,4 +171,16 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
            """)
     List<Evento> findProximosEventosDoAluno(@Param("alunoId") Long alunoId,
                                             @Param("now") LocalDateTime now);
+
+    /** Conflitos para uma lista de salas (qualquer interseção bloqueia). */
+    @Query("""
+           select e
+           from Evento e
+           where e.sala in :salas
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+           """)
+    List<Evento> findConflitosAgendamentoSalas(@Param("salas") List<Sala> salas,
+                                                @Param("inicio") LocalDateTime inicio,
+                                                @Param("fim")    LocalDateTime fim);
 }

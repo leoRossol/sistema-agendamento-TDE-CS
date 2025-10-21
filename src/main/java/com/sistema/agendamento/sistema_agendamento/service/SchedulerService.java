@@ -41,6 +41,7 @@ public class SchedulerService {
         this.salaRepository = salaRepository;
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public Evento criarEvento(CreateEventoRequest req) {
         validar(req);
 
@@ -53,30 +54,79 @@ public class SchedulerService {
                     .orElseThrow(() -> new IllegalArgumentException("turmaId não encontrado"));
         }
 
-        Sala sala = salaRepository.findById(req.salaId)
-                .orElseThrow(() -> new IllegalArgumentException("salaId não encontrado"));
+        // US-09: múltiplos labs em conjunto
+        List<Sala> salasSelecionadas = new ArrayList<>();
+        if (req.labs != null && !req.labs.isEmpty()) {
+            // precisa de pelo menos 2 labs
+            if (req.labs.size() < 2) {
+                throw new IllegalArgumentException("Para reserva conjunta informe ao menos 2 labs em 'labs'");
+            }
+            // carrega todas e valida existência
+            for (Long sid : req.labs) {
+                Sala s = salaRepository.findById(sid)
+                        .orElseThrow(() -> new IllegalArgumentException("labId=" + sid + " não encontrado"));
+                salasSelecionadas.add(s);
+            }
+            // valida vínculo de conjunto: todas marcadas como ehConjunto e pertencentes ao grupo do primeiro
+            Sala principal = salasSelecionadas.get(0);
+            if (principal.getEhConjunto() == null || !principal.getEhConjunto()) {
+                throw new IllegalArgumentException("labs não pertencem a um conjunto válido");
+            }
+            // checa que cada sala está marcada como conjunto e (se modelado) aparece nas ligações do principal
+            for (int i = 1; i < salasSelecionadas.size(); i++) {
+                Sala s = salasSelecionadas.get(i);
+                if (s.getEhConjunto() == null || !s.getEhConjunto()) {
+                    throw new IllegalArgumentException("labs não pertencem a um conjunto válido");
+                }
+                // se houver relação explicitada, exige presença
+                if (principal.getSalasConjuntas() != null && !principal.getSalasConjuntas().isEmpty()) {
+                    if (!principal.getSalasConjuntas().stream().anyMatch(x -> x.getId().equals(s.getId()))) {
+                        throw new IllegalArgumentException("labs não vinculados no mesmo conjunto");
+                    }
+                }
+            }
+        }
 
-        boolean conflitoSala = !eventoRepository.findConflitosAgendamento(sala, req.inicio, req.fim).isEmpty();
+        Sala sala = null;
+        if (salasSelecionadas.isEmpty()) {
+            sala = salaRepository.findById(req.salaId)
+                    .orElseThrow(() -> new IllegalArgumentException("salaId não encontrado"));
+            salasSelecionadas.add(sala);
+        }
+
+        boolean conflitoSala;
+        if (salasSelecionadas.size() > 1) {
+            conflitoSala = !eventoRepository.findConflitosAgendamentoSalas(salasSelecionadas, req.inicio, req.fim).isEmpty();
+        } else {
+            conflitoSala = !eventoRepository.findConflitosAgendamento(salasSelecionadas.get(0), req.inicio, req.fim).isEmpty();
+        }
         boolean conflitoProfessor = !eventoRepository.findConflitosProfessor(professor, req.inicio, req.fim).isEmpty();
         boolean conflitoTurma = (turma != null) && !eventoRepository.findConflitosTurma(turma, req.inicio, req.fim).isEmpty();
 
         if (conflitoSala || conflitoProfessor || conflitoTurma) {
-            List<SugestaoDTO> sug = sugerir(req, sala);
+            // usa a primeira sala como referência de sugestão quando multi-labs
+            Sala refSala = salasSelecionadas.isEmpty() ? null : salasSelecionadas.get(0);
+            List<SugestaoDTO> sug = sugerir(req, refSala);
             throw new SchedulerConflict("CONFLITO_AGENDA", "Conflito detectado com recurso/professor/turma.", sug);
         }
 
-        Evento e = new Evento();
-        e.setTitulo(req.titulo);
-        e.setDescricao(req.descricao);
-        e.setDataInicio(req.inicio);
-        e.setDataFim(req.fim);
-        e.setTipoEvento(TipoEvento.valueOf(req.tipoEvento)); // usa o enum do projeto
-        e.setProfessor(professor);
-        e.setTurma(turma);
-        e.setSala(sala);
-        e.setStatus(StatusEventos.CONFIRMADO);
-
-        return eventoRepository.save(e);
+        // Criação atômica: cria um evento por sala selecionada; se falhar, transação reverte tudo
+        Evento primeiro = null;
+        for (Sala s : salasSelecionadas) {
+            Evento e = new Evento();
+            e.setTitulo(req.titulo);
+            e.setDescricao(req.descricao);
+            e.setDataInicio(req.inicio);
+            e.setDataFim(req.fim);
+            e.setTipoEvento(TipoEvento.valueOf(req.tipoEvento));
+            e.setProfessor(professor);
+            e.setTurma(turma);
+            e.setSala(s);
+            e.setStatus(StatusEventos.CONFIRMADO);
+            Evento saved = eventoRepository.save(e);
+            if (primeiro == null) primeiro = saved;
+        }
+        return primeiro;
     }
 
     public Evento obterEvento(Long id) {
@@ -167,7 +217,8 @@ public class SchedulerService {
         if (!StringUtils.hasText(e.titulo)) throw new IllegalArgumentException("titulo é obrigatório");
         if (!StringUtils.hasText(e.tipoEvento)) throw new IllegalArgumentException("tipoEvento é obrigatório");
         if (e.professorId == null) throw new IllegalArgumentException("professorId é obrigatório");
-        if (e.salaId == null) throw new IllegalArgumentException("salaId é obrigatório");
+        if ((e.labs == null || e.labs.isEmpty()) && e.salaId == null)
+            throw new IllegalArgumentException("salaId é obrigatório quando labs não informado");
         if (e.inicio == null || e.fim == null) throw new IllegalArgumentException("inicio/fim são obrigatórios");
         if (!e.inicio.isBefore(e.fim)) throw new IllegalArgumentException("inicio deve ser anterior a fim");
         try { TipoEvento.valueOf(e.tipoEvento); }
@@ -180,7 +231,7 @@ public class SchedulerService {
         // A) mesmo horário, outra sala disponível
         var salas = salaRepository.findAll();
         for (var s : salas) {
-            if (Objects.equals(s.getId(), salaOriginal.getId())) continue;
+            if (salaOriginal != null && Objects.equals(s.getId(), salaOriginal.getId())) continue;
             boolean livre = eventoRepository.findConflitosAgendamento(s, req.inicio, req.fim).isEmpty();
             if (livre) {
                 out.add(new SugestaoDTO(req.inicio, req.fim, "SALA", s.getId(), "Outro recurso no mesmo horário"));
@@ -189,12 +240,12 @@ public class SchedulerService {
         }
 
         // B) mesmo recurso, próxima janela (+10 min)
-        if (out.size() < 3) {
+        if (out.size() < 3 && salaOriginal != null) {
             out.add(new SugestaoDTO(req.inicio.plusMinutes(10), req.fim.plusMinutes(10), "SALA", salaOriginal.getId(), "Próxima janela no mesmo dia"));
         }
 
         // C) mesmo horário, dia seguinte
-        if (out.size() < 3) {
+        if (out.size() < 3 && salaOriginal != null) {
             out.add(new SugestaoDTO(req.inicio.plusDays(1), req.fim.plusDays(1), "SALA", salaOriginal.getId(), "Mesmo horário no dia seguinte"));
         }
 
