@@ -13,9 +13,11 @@ public class AutenticacaoService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(); // armazenamos somente o encoder, nao a senha em si
 
     public Usuario login(String email, String senha) {
-        Usuario usuario = usuarioRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
-        if (!passwordEncoder.matches(senha, usuario.getSenha())) throw new RuntimeException("Senha incorreta");
+    Usuario usuario = usuarioRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    
+    if (!passwordEncoder.matches(senha, usuario.getSenha())) throw new RuntimeException("Senha incorreta");
+    
+    return usuario;
+}
 
-        return usuario;
-    }
 }

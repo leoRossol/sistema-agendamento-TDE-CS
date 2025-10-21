@@ -19,8 +19,12 @@ public class UsuarioService {
         novoUsuario.setNome(nome);
         novoUsuario.setEmail(email);
         novoUsuario.setSenha(passwordEncoder.encode(senha)); // senha criptografada
-        novoUsuario.setTipoUsuario(TipoUsuario.PROFESSOR); // TO DO: desmockar 
         novoUsuario.setAtivo(true);
+
+        if (tipoUsuario.equalsIgnoreCase("ADMINISTRADOR")) novoUsuario.setTipoUsuario(TipoUsuario.ADMINISTRADOR);
+        else if (tipoUsuario.equalsIgnoreCase("PROFESSOR")) novoUsuario.setTipoUsuario(TipoUsuario.PROFESSOR);
+        else if (tipoUsuario.equalsIgnoreCase("ALUNO")) novoUsuario.setTipoUsuario(TipoUsuario.ALUNO);
+        else throw new RuntimeException("Tipo de usuário inválido");
 
         if (!NovaSenhaValida(senha)) throw new RuntimeException("Senha não atende aos requisitos de segurança");
 
