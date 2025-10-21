@@ -1,10 +1,52 @@
 services:
+  # Database
   mysql:
-    image: 'mysql:latest'
+    image: 'mysql:8.0'
+    container_name: sistema-agendamento-mysql
     environment:
-      - 'MYSQL_DATABASE=mydatabase'
+      - 'MYSQL_DATABASE=sistema_agendamento'
       - 'MYSQL_PASSWORD=secret'
       - 'MYSQL_ROOT_PASSWORD=verysecret'
-      - 'MYSQL_USER=myuser'
+      - 'MYSQL_USER=agendamento_user'
     ports:
-      - '3306'
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - agendamento-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Reports Service (Microserviço de Relatórios)
+  reports-svc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sistema-agendamento-reports
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/sistema_agendamento
+      - SPRING_DATASOURCE_USERNAME=agendamento_user
+      - SPRING_DATASOURCE_PASSWORD=secret
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agendamento-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+
+networks:
+  agendamento-network:
+    driver: bridge
