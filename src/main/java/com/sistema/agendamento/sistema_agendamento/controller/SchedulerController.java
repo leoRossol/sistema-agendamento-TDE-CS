@@ -3,6 +3,10 @@ package com.sistema.agendamento.sistema_agendamento.controller;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -101,7 +105,9 @@ public class SchedulerController {
 
     @GetMapping("/calendario/professores/{id}")
     public ResponseEntity<?> calendarioProfessor(@PathVariable("id") Long professorId,
-                                                 @RequestParam("periodo") String periodo) {
+                                                 @RequestParam("periodo") String periodo,
+                                                 @RequestParam(value = "format", required = false) String format,
+                                                 @org.springframework.web.bind.annotation.RequestHeader(value = "Accept", required = false) String accept) {
         // Decode URL-encoded values. Some clients may double-encode, so decode until stable.
         String decoded = safeUrlDecode(periodo);
         String[] p = decoded.split("/");
@@ -119,8 +125,26 @@ public class SchedulerController {
                     .body(Map.of("code", "PARAMETRO_INVALIDO", "message", "periodo inválido. Use ISO-8601: yyyy-MM-dd'T'HH:mm:ss/yyyy-MM-dd'T'HH:mm:ss"));
         }
         var eventos = schedulerService.calendarioProfessor(professorId, inicio, fim);
-        var lista = eventos.stream().map(this::toResponse).toList();
-        return ResponseEntity.ok(lista);
+
+        boolean wantsIcal = false;
+        if (format != null) {
+            String f = format.trim().toLowerCase();
+            wantsIcal = f.equals("ical") || f.equals("ics") || f.equals("text/calendar");
+        }
+        if (!wantsIcal && accept != null) {
+            wantsIcal = accept.toLowerCase().contains("text/calendar");
+        }
+
+        if (wantsIcal) {
+            String ics = renderICal(eventos, professorId, inicio, fim);
+            return ResponseEntity.ok()
+                    .header("Content-Type", "text/calendar; charset=utf-8")
+                    .header("Content-Disposition", "attachment; filename=calendario-prof-" + professorId + ".ics")
+                    .body(ics);
+        } else {
+            var lista = eventos.stream().map(this::toResponse).toList();
+            return ResponseEntity.ok(lista);
+        }
     }
 
     private static String safeUrlDecode(String value) {
@@ -150,5 +174,56 @@ public class SchedulerController {
         r.createdAt = e.getCreatedAt();
         //r.updatedAt = e.getUpdatedAt();
         return r;
+    }
+
+    private String renderICal(java.util.List<Evento> eventos, Long professorId, LocalDateTime inicio, LocalDateTime fim) {
+        String NL = "\r\n";
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN:VCALENDAR").append(NL)
+          .append("VERSION:2.0").append(NL)
+          .append("PRODID:-//sistema-agendamento//scheduler//PT-BR").append(NL)
+          .append("CALSCALE:GREGORIAN").append(NL)
+          .append("METHOD:PUBLISH").append(NL);
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
+        String nowUtc = ZonedDateTime.now(ZoneOffset.UTC).format(fmt);
+
+        for (Evento e : eventos) {
+            ZonedDateTime zStart = e.getDataInicio().atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC);
+            ZonedDateTime zEnd = e.getDataFim().atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC);
+            String dtStart = zStart.format(fmt);
+            String dtEnd = zEnd.format(fmt);
+            String uid = e.getId() + "@sistema-agendamento";
+            String summary = escapeIcs(e.getTitulo());
+            String description = e.getDescricao() != null ? escapeIcs(e.getDescricao()) : "";
+            String categories = e.getTipoEvento() != null ? e.getTipoEvento().name() : "EVENTO";
+            String location = e.getSala() != null ? (e.getSala().getNome() != null ? e.getSala().getNome() : ("Sala " + e.getSala().getId())) : "";
+
+            sb.append("BEGIN:VEVENT").append(NL)
+              .append("UID:").append(uid).append(NL)
+              .append("DTSTAMP:").append(nowUtc).append(NL)
+              .append("DTSTART:").append(dtStart).append(NL)
+              .append("DTEND:").append(dtEnd).append(NL)
+              .append("SUMMARY:").append(summary).append(NL)
+              .append("DESCRIPTION:").append(description).append(NL)
+              .append("CATEGORIES:").append(categories).append(NL);
+            if (!location.isBlank()) {
+                sb.append("LOCATION:").append(escapeIcs(location)).append(NL);
+            }
+            sb.append("END:VEVENT").append(NL);
+        }
+
+        sb.append("END:VCALENDAR").append(NL);
+        return sb.toString();
+    }
+
+    private static String escapeIcs(String s) {
+        // Escape backslash, comma, semicolon and newlines per RFC 5545
+        String out = s.replace("\\", "\\\\")
+                      .replace(",", "\\,")
+                      .replace(";", "\\;")
+                      .replace("\r\n", "\\n")
+                      .replace("\n", "\\n");
+        return out;
     }
 }

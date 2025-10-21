@@ -242,6 +242,29 @@ class SchedulerControllerTests {
     }
 
     @Test
+    void calendarioProfessor_iCal_textCalendar() throws Exception {
+        // garante 1 evento no período
+        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
+        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
+        ResponseEntity<String> created = postEvento("AULA", "Cálculo I", ini, fim);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        String periodo = "2025-10-20T00:00:00/2025-10-31T23:59:59";
+        String encodedPeriodo = URLEncoder.encode(periodo, StandardCharsets.UTF_8);
+        String url = baseUrl() + "/scheduler/calendario/professores/" + professorId + "?periodo=" + encodedPeriodo + "&format=ical";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Accept", "text/calendar");
+        ResponseEntity<String> resp = rest.getForEntity(url, String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getHeaders().getFirst("Content-Type")).startsWith("text/calendar");
+        assertThat(resp.getBody()).contains("BEGIN:VCALENDAR");
+        assertThat(resp.getBody()).contains("BEGIN:VEVENT");
+        assertThat(resp.getBody()).contains("SUMMARY:Cálculo I");
+    }
+
+    @Test
     void atualizaEvento_sucesso_200() throws Exception {
         // cria um evento inicialmente em 19-21h
         LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
