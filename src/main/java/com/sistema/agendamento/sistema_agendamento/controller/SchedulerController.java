@@ -41,6 +41,19 @@ public class SchedulerController {
         this.schedulerService = schedulerService;
     }
 
+    @GetMapping("/calendario/alunos/{id}/agora")
+    public ResponseEntity<?> aulaAtualEProxima(@PathVariable("id") Long alunoId) {
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            var eventos = schedulerService.aulaAtualEProximaDoAluno(alunoId, now);
+            var lista = eventos.stream().map(this::toResponse).toList();
+            return ResponseEntity.ok(lista);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(Map.of("code", "ERRO_VALIDACAO", "errors", List.of(Map.of("message", ex.getMessage()))));
+        }
+    }
+
     @PostMapping("/eventos")
     public ResponseEntity<?> criar(@RequestBody CreateEventoRequest body) {
         try {

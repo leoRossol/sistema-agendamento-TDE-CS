@@ -137,6 +137,32 @@ public class SchedulerService {
         return eventos;
     }
 
+    /**
+     * Retorna a aula atual (se houver) e a próxima para um aluno, considerando matrículas ativas.
+     * Resultado: lista com 0, 1 ou 2 eventos (na ordem: atual primeiro, depois próxima).
+     */
+    public List<Evento> aulaAtualEProximaDoAluno(Long alunoId, LocalDateTime now) {
+        // valida existência do aluno
+        usuarioRepository.findById(alunoId)
+                .orElseThrow(() -> new IllegalArgumentException("alunoId não encontrado"));
+
+        List<Evento> atuais = eventoRepository.findEventosAtuaisDoAluno(alunoId, now);
+        List<Evento> futuros = eventoRepository.findProximosEventosDoAluno(alunoId, now);
+
+        List<Evento> result = new ArrayList<>();
+        if (!atuais.isEmpty()) {
+            // se houver mais de um simultâneo, pega o mais cedo
+            atuais.sort(Comparator.comparing(Evento::getDataInicio));
+            result.add(atuais.get(0));
+            // para próxima, pega o primeiro futuro
+            if (!futuros.isEmpty()) result.add(futuros.get(0));
+        } else {
+            // sem atual: a "atual" não existe; retorna só a próxima se houver
+            if (!futuros.isEmpty()) result.add(futuros.get(0));
+        }
+        return result;
+    }
+
     private void validar(CreateEventoRequest e) {
         if (!StringUtils.hasText(e.titulo)) throw new IllegalArgumentException("titulo é obrigatório");
         if (!StringUtils.hasText(e.tipoEvento)) throw new IllegalArgumentException("tipoEvento é obrigatório");

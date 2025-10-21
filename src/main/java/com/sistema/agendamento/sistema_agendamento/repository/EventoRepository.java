@@ -137,4 +137,38 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
         LocalDateTime fim = inicio.plusDays(1);
         return findEventosDoPeriodo(inicio, fim);
     }
+
+    /**
+     * Eventos em andamento para um aluno no instante atual (agora).
+     * Critério: dataInicio <= :now AND dataFim > :now e turma do aluno (status ATIVO).
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.dataInicio <= :now
+             and e.dataFim > :now
+             and e.turma in (
+                 select m.turma from Matricula m
+                 where m.aluno.id = :alunoId and m.status = 'ATIVO'
+             )
+           order by e.dataInicio asc
+           """)
+    List<Evento> findEventosAtuaisDoAluno(@Param("alunoId") Long alunoId,
+                                          @Param("now") LocalDateTime now);
+
+    /**
+     * Próximos eventos (futuros) para um aluno, ordenados por dataInicio asc.
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.dataInicio > :now
+             and e.turma in (
+                 select m.turma from Matricula m
+                 where m.aluno.id = :alunoId and m.status = 'ATIVO'
+             )
+           order by e.dataInicio asc
+           """)
+    List<Evento> findProximosEventosDoAluno(@Param("alunoId") Long alunoId,
+                                            @Param("now") LocalDateTime now);
 }

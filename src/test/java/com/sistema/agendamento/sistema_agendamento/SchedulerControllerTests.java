@@ -65,6 +65,9 @@ class SchedulerControllerTests {
 
         new TransactionTemplate(txManager).executeWithoutResult(status -> {
             // limpa em ordem de FK
+            // remove dependentes via SQL bruto para evitar violação de FK
+            em.createNativeQuery("DELETE FROM matriculas").executeUpdate();
+            em.createNativeQuery("DELETE FROM turma_alunos").executeUpdate();
             eventoRepository.deleteAll();
             turmaRepository.deleteAll();
             disciplinaRepository.deleteAll();
@@ -321,5 +324,66 @@ class SchedulerControllerTests {
         HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
         ResponseEntity<String> resp = rest.exchange(baseUrl()+"/scheduler/eventos/"+idB, HttpMethod.PUT, req, String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void calendarioAluno_agora_retornaAtualEProximaComSala() throws Exception {
+        // cria um aluno e matricula na turma criada no setup
+        final String SUF = "_ALUNO_" + (System.currentTimeMillis() % 1_000_000);
+        Long alunoId;
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            String emailAluno = "aluno" + SUF + "@uni.test";
+            em.createNativeQuery("""
+                INSERT INTO usuarios (nome, email, senha, tipo_usuario, ativo, created_at, updated_at)
+                VALUES (?1, ?2, ?3, 'ALUNO', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """)
+            .setParameter(1, "Aluno Test " + SUF)
+            .setParameter(2, emailAluno)
+            .setParameter(3, "x")
+            .executeUpdate();
+
+            Number alunoIdNum = (Number) em.createNativeQuery("SELECT id FROM usuarios WHERE email = ?1")
+                    .setParameter(1, emailAluno)
+                    .getSingleResult();
+            em.createNativeQuery("""
+                INSERT INTO matriculas (aluno_id, turma_id, status, created_at, updated_at)
+                VALUES (?1, ?2, 'ATIVO', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """)
+            .setParameter(1, alunoIdNum.longValue())
+            .setParameter(2, turmaId)
+            .executeUpdate();
+        });
+
+        // pega id do aluno
+        Number alunoIdNum = (Number) em.createNativeQuery("SELECT id FROM usuarios WHERE tipo_usuario = 'ALUNO' ORDER BY id DESC LIMIT 1").getSingleResult();
+        alunoId = alunoIdNum.longValue();
+
+        // cria eventos: um atual e um próximo para a mesma turma/sala
+        LocalDateTime now = LocalDateTime.now();
+        ResponseEntity<String> eAtual = postEvento("AULA", "Aula Atual", now.minusMinutes(15), now.plusMinutes(45));
+        assertThat(eAtual.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        ResponseEntity<String> eProx = postEvento("AULA", "Aula Próxima", now.plusHours(1), now.plusHours(2));
+        assertThat(eProx.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // chama endpoint
+        ResponseEntity<String> resp = rest.getForEntity(baseUrl() + "/scheduler/calendario/alunos/" + alunoId + "/agora", String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        JsonNode arr = om.readTree(resp.getBody());
+        assertThat(arr.isArray()).isTrue();
+        // Deve retornar pelo menos a atual
+        assertThat(arr.size()).isGreaterThanOrEqualTo(1);
+
+        // primeira é a atual
+        assertThat(arr.get(0).path("titulo").asText()).isEqualTo("Aula Atual");
+        // cada item deve conter sala (recurso)
+        assertThat(arr.get(0).path("recurso").isMissingNode()).isFalse();
+        assertThat(arr.get(0).path("recurso").path("tipo").asText()).isEqualTo("SALA");
+
+        if (arr.size() >= 2) {
+            assertThat(arr.get(1).path("titulo").asText()).isEqualTo("Aula Próxima");
+            assertThat(arr.get(1).path("recurso").path("tipo").asText()).isEqualTo("SALA");
+        }
     }
 }
