@@ -19,6 +19,10 @@ public class ReservaSala {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "turma_id")
+    private Turma turma;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "professor_id", nullable = false)
@@ -56,4 +60,21 @@ public class ReservaSala {
     public enum StatusReserva {
         PENDENTE, APROVADA, REJEITADA, CANCELADA
     }
+
+    // ===== getters/setters explícitos para evitar problemas com Lombok nos testes =====
+    public Turma getTurma() { return turma; }
+    public void setTurma(Turma turma) { this.turma = turma; }
+
+    public Usuario getProfessor() { return professor; }
+    public void setProfessor(Usuario professor) { this.professor = professor; }
+
+    public Sala getSala() { return sala; }
+    public void setSala(Sala sala) { this.sala = sala; }
+
+    public LocalDateTime getDataInicio() { return dataInicio; }
+    public void setDataInicio(LocalDateTime dataInicio) { this.dataInicio = dataInicio; }
+
+    public LocalDateTime getDataFim() { return dataFim; }
+    public void setDataFim(LocalDateTime dataFim) { this.dataFim = dataFim; }
+
 }
