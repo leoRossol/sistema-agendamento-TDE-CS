@@ -1,6 +1,9 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,14 +74,37 @@ public class SchedulerController {
     @GetMapping("/calendario/professores/{id}")
     public ResponseEntity<?> calendarioProfessor(@PathVariable("id") Long professorId,
                                                  @RequestParam("periodo") String periodo) {
-        String[] p = periodo.split("/");
+        // Decode URL-encoded values. Some clients may double-encode, so decode until stable.
+        String decoded = safeUrlDecode(periodo);
+        String[] p = decoded.split("/");
         if (p.length != 2) {
             return ResponseEntity.badRequest()
                     .body(Map.of("code", "PARAMETRO_INVALIDO", "message", "periodo no formato inicio/fim é obrigatório"));
         }
-        LocalDateTime inicio = LocalDateTime.parse(p[0]);
-        LocalDateTime fim = LocalDateTime.parse(p[1]);
-        return ResponseEntity.ok(schedulerService.calendarioProfessor(professorId, inicio, fim));
+        final LocalDateTime inicio;
+        final LocalDateTime fim;
+        try {
+            inicio = LocalDateTime.parse(p[0]);
+            fim = LocalDateTime.parse(p[1]);
+        } catch (DateTimeParseException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("code", "PARAMETRO_INVALIDO", "message", "periodo inválido. Use ISO-8601: yyyy-MM-dd'T'HH:mm:ss/yyyy-MM-dd'T'HH:mm:ss"));
+        }
+        var eventos = schedulerService.calendarioProfessor(professorId, inicio, fim);
+        var lista = eventos.stream().map(this::toResponse).toList();
+        return ResponseEntity.ok(lista);
+    }
+
+    private static String safeUrlDecode(String value) {
+        String prev;
+        String curr = value;
+        // Decode up to 3 times to handle cases like %252F -> %2F -> /
+        for (int i = 0; i < 3; i++) {
+            prev = curr;
+            curr = URLDecoder.decode(curr, StandardCharsets.UTF_8);
+            if (curr.equals(prev)) break;
+        }
+        return curr;
     }
 
     private EventoResponse toResponse(Evento e) {

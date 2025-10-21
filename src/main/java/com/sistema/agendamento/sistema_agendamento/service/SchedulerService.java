@@ -3,9 +3,7 @@ package com.sistema.agendamento.sistema_agendamento.service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -85,7 +83,7 @@ public class SchedulerService {
         return eventoRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Evento não encontrado"));
     }
 
-    public Map<String, Object> calendarioProfessor(Long professorId, LocalDateTime inicio, LocalDateTime fim) {
+    public List<Evento> calendarioProfessor(Long professorId, LocalDateTime inicio, LocalDateTime fim) {
         Usuario professor = usuarioRepository.findById(professorId)
                 .orElseThrow(() -> new IllegalArgumentException("professorId não encontrado"));
 
@@ -94,12 +92,7 @@ public class SchedulerService {
                 .filter(e -> e.getProfessor() != null && Objects.equals(e.getProfessor().getId(), professor.getId()))
                 .sorted(Comparator.comparing(Evento::getDataInicio))
                 .toList();
-
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("professorId", professorId);
-        resp.put("periodo", inicio + "/" + fim);
-        resp.put("eventos", eventos);
-        return resp;
+        return eventos;
     }
 
     private void validar(CreateEventoRequest e) {
