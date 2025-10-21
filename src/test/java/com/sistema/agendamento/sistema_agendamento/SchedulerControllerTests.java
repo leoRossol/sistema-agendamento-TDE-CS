@@ -15,6 +15,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistema.agendamento.sistema_agendamento.entity.Curso;
 import com.sistema.agendamento.sistema_agendamento.entity.Disciplina;
-import com.sistema.agendamento.sistema_agendamento.entity.Sala;
 import com.sistema.agendamento.sistema_agendamento.entity.Turma;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
 import com.sistema.agendamento.sistema_agendamento.repository.DisciplinaRepository;
@@ -119,7 +119,8 @@ class SchedulerControllerTests {
                     .setParameter(1, salaNumero)
                     .getSingleResult();
             salaId = salaIdNum.longValue();
-            Sala sala = salaRepository.findById(salaId).orElseThrow();
+            // ensure sala exists
+            salaRepository.findById(salaId).orElseThrow();
 
             // ====== TURMA ======
             Turma t = new Turma();
@@ -238,5 +239,64 @@ class SchedulerControllerTests {
         JsonNode arr = om.readTree(resp.getBody());
         assertThat(arr.isArray()).isTrue();
         assertThat(arr.size()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void atualizaEvento_sucesso_200() throws Exception {
+        // cria um evento inicialmente em 19-21h
+        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
+        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
+        ResponseEntity<String> created = postEvento("AULA", "Cálculo I", ini, fim);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        Long id = om.readTree(created.getBody()).path("id").asLong();
+
+        // atualiza para 21-22h (janela livre)
+        Map<String, Object> payload = Map.of(
+                "tipoEvento", "AULA",
+                "titulo", "Cálculo I",
+                "descricao", "Remarcado",
+                "professorId", professorId,
+                "turmaId", turmaId,
+                "salaId", salaId,
+                "inicio", LocalDateTime.of(2025, 10, 27, 21, 0, 0).toString(),
+                "fim", LocalDateTime.of(2025, 10, 27, 22, 0, 0).toString()
+        );
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
+        ResponseEntity<String> resp = rest.exchange(baseUrl()+"/scheduler/eventos/"+id, HttpMethod.PUT, req, String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        JsonNode body = om.readTree(resp.getBody());
+        assertThat(body.path("inicio").asText()).startsWith("2025-10-27T21:00:00");
+        assertThat(body.path("fim").asText()).startsWith("2025-10-27T22:00:00");
+    }
+
+    @Test
+    void atualizaEvento_comConflitoNaMesmaSala_409() throws Exception {
+        // Evento A: 19-21h
+        ResponseEntity<String> a = postEvento("AULA", "A", LocalDateTime.of(2025,10,27,19,0,0), LocalDateTime.of(2025,10,27,21,0,0));
+        assertThat(a.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // Evento B: 21-22h (sem conflito)
+        ResponseEntity<String> b = postEvento("AULA", "B", LocalDateTime.of(2025,10,27,21,0,0), LocalDateTime.of(2025,10,27,22,0,0));
+        assertThat(b.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        Long idB = om.readTree(b.getBody()).path("id").asLong();
+
+        // Tenta mover B para 20-22h (conflita com A entre 20-21)
+        Map<String, Object> payload = Map.of(
+                "tipoEvento", "AULA",
+                "titulo", "B",
+                "descricao", "Move para conflito",
+                "professorId", professorId,
+                "turmaId", turmaId,
+                "salaId", salaId,
+                "inicio", LocalDateTime.of(2025, 10, 27, 20, 0, 0).toString(),
+                "fim", LocalDateTime.of(2025, 10, 27, 22, 0, 0).toString()
+        );
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
+        ResponseEntity<String> resp = rest.exchange(baseUrl()+"/scheduler/eventos/"+idB, HttpMethod.PUT, req, String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 }

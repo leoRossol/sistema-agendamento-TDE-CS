@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,6 +42,33 @@ public class SchedulerController {
         try {
             Evento e = schedulerService.criarEvento(body);
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(e));
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("code", "ERRO_VALIDACAO");
+            err.put("errors", List.of(Map.of("message", ex.getMessage())));
+            return ResponseEntity.unprocessableEntity().body(err);
+        } catch (SchedulerConflict ex) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("code", ex.code);
+            err.put("message", ex.publicMessage);
+            err.put("sugestoes", ex.sugestoes.stream().map(s -> Map.of(
+                    "inicio", s.inicio,
+                    "fim", s.fim,
+                    "recurso", Map.of("tipo", s.recursoTipo, "id", s.recursoId),
+                    "motivo", s.motivo
+            )).toList());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(err);
+        }
+    }
+
+    @PutMapping("/eventos/{id}")
+    public ResponseEntity<?> atualizar(@PathVariable("id") Long id, @RequestBody CreateEventoRequest body) {
+        try {
+            Evento e = schedulerService.atualizarEvento(id, body);
+            return ResponseEntity.ok(toResponse(e));
+        } catch (NoSuchElementException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("code", "NAO_ENCONTRADO", "message", "Evento não encontrado"));
         } catch (IllegalArgumentException ex) {
             Map<String, Object> err = new LinkedHashMap<>();
             err.put("code", "ERRO_VALIDACAO");
