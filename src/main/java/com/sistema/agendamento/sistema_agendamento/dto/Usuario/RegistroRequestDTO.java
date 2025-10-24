@@ -1,27 +1,31 @@
-package com.sistema.agendamento.sistema_agendamento.dto;
+package com.sistema.agendamento.sistema_agendamento.dto.Usuario;
 
 import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public class UsuarioRequestDTO {
+public class RegistroRequestDTO {
 
     @NotBlank(message = "Nome é obrigatório")
     private String nome;
 
-    @Email(message = "E-mail inválido")
-    @NotBlank(message = "E-mail é obrigatório")
+    @Email(message = "Email inválido")
+    @NotBlank(message = "Email é obrigatório")
     private String email;
 
     @NotBlank(message = "Senha é obrigatória")
-    @Size(min = 6, message = "Senha deve ter no mínimo 6 caracteres")
+    @Size(min = 6, message = "Senha deve ter ao menos 6 caracteres")
     private String senha;
 
-    @NotNull(message = "O tipo de usuário é obrigatório")
     private TipoUsuario tipoUsuario;
+
+    public RegistroRequestDTO(String nome, String email, String senha, TipoUsuario tipoUsuario) {
+        this.nome = nome;
+        this.email = email;
+        this.senha = senha;
+        this.tipoUsuario = tipoUsuario;
+    }
 
     public String getNome() { return nome; }
     public void setNome(String nome) { this.nome = nome; }

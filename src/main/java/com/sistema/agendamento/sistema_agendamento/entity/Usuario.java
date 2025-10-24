@@ -61,8 +61,6 @@ public class Usuario {
     
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<Notificacao> notificacoes;
-    
-    public Usuario() {}
 
     public Usuario(String nome, String email, String senha, TipoUsuario tipoUsuario) {
         this.nome = nome;
@@ -71,6 +69,8 @@ public class Usuario {
         this.tipoUsuario = tipoUsuario;
         this.ativo = true;
     }
+
+    public Usuario() { }
 
     @PrePersist
     protected void onCreate() {

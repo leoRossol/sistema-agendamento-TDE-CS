@@ -1,83 +1,73 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
-import com.sistema.agendamento.sistema_agendamento.dto.UsuarioRequestDTO;
-import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
-import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
-
+import com.sistema.agendamento.sistema_agendamento.service.UsuarioService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Optional;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+public class UsuarioControllerTest {
 
-class UsuarioControllerTest {
+    private MockMvc mockMvc;
 
     @Mock
-    private UsuarioRepository usuarioRepository;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
+    private UsuarioService usuarioService;
 
     @InjectMocks
     private UsuarioController usuarioController;
 
+    private ObjectMapper objectMapper;
+
     @BeforeEach
-    void setUp() {
+    void setup() {
         MockitoAnnotations.openMocks(this);
+        mockMvc = MockMvcBuilders.standaloneSetup(usuarioController).build();
+        objectMapper = new ObjectMapper();
     }
 
     @Test
-    void registrar_DeveRegistrarUsuarioComSucesso() {
-        UsuarioRequestDTO dto = new UsuarioRequestDTO();
-        dto.setNome("Thiago");
-        dto.setEmail("thiago@email.com");
-        dto.setSenha("123456");
-        dto.setTipoUsuario(TipoUsuario.PROFESSOR);
+    void registrarUsuarioDeveRetornar200() throws Exception {
+        RegistroRequestDTO registroRequest = new RegistroRequestDTO("Thiago", "thiago@email.com", "Senha@123", TipoUsuario.ALUNO);
 
-        when(usuarioRepository.findByEmail(dto.getEmail())).thenReturn(Optional.empty());
-        when(passwordEncoder.encode(dto.getSenha())).thenReturn("senhaCriptografada");
+        RegistroResponseDTO responseDTO = new RegistroResponseDTO();
+        responseDTO.setMensagem("Usuário registrado com sucesso!");
+        responseDTO.setId(1L);
 
-        Usuario usuarioSalvo = new Usuario();
-        usuarioSalvo.setId(1L);
-        when(usuarioRepository.save(any(Usuario.class))).thenReturn(usuarioSalvo);
+        when(usuarioService.registrarUsuario(any())).thenReturn(responseDTO);
 
-        ResponseEntity<?> response = usuarioController.registrar(dto);
-
-        assertEquals(200, response.getStatusCodeValue());
-        assertTrue(response.getBody().toString().contains("ID: 1"));
-
-        // verifica se o usuario foi salvo corretamente
-        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(captor.capture());
-        Usuario usuarioCapturado = captor.getValue();
-        assertEquals("Thiago", usuarioCapturado.getNome());
-        assertEquals("thiago@email.com", usuarioCapturado.getEmail());
-        assertEquals("senhaCriptografada", usuarioCapturado.getSenha());
-        assertTrue(usuarioCapturado.isAtivo());
-        assertEquals("ADMIN", usuarioCapturado.getTipoUsuario());
+        mockMvc.perform(post("/usuarios/registrar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registroRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mensagem").value("Usuário registrado com sucesso!"))
+                .andExpect(jsonPath("$.id").value(1));
     }
 
     @Test
-    void registrar_DeveRetornarErroQuandoEmailExistente() {
-        UsuarioRequestDTO dto = new UsuarioRequestDTO();
-        dto.setEmail("teste@email.com");
+    void redefinirSenhaDeveRetornar200() throws Exception {
+        NovaSenhaRequestDTO novaSenhaRequest = new NovaSenhaRequestDTO("thiago@email.com", "Senha@123", "NovaSenha@1");
 
-        when(usuarioRepository.findByEmail(dto.getEmail()))
-                .thenReturn(Optional.of(new Usuario()));
+        when(usuarioService.redefinirSenha(any())).thenReturn(new NovaSenhaResponseDTO() {{ setMensagem("Senha redefinida com sucesso!");}});
 
-        ResponseEntity<?> response = usuarioController.registrar(dto);
-
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("E-mail já está em uso", response.getBody());
-        verify(usuarioRepository, never()).save(any());
+        mockMvc.perform(post("/usuarios/redefinir-senha")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(novaSenhaRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mensagem").value("Senha redefinida com sucesso!"));
     }
 }

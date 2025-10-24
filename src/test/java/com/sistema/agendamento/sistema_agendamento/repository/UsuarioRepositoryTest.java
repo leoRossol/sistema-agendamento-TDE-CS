@@ -25,19 +25,10 @@ class UsuarioRepositoryTest {
     void setUp() {
         usuarioRepository.deleteAll();
 
-        usuarioAtivoAdmin = new Usuario();
-        usuarioAtivoAdmin.setNome("Admin Ativo");
-        usuarioAtivoAdmin.setEmail("admin@teste.com");
-        usuarioAtivoAdmin.setSenha("123");
-        usuarioAtivoAdmin.setAtivo(true);
-        usuarioAtivoAdmin.setTipoUsuario(TipoUsuario.ADMINISTRADOR);
+        usuarioAtivoAdmin = new Usuario("Admin Ativo", "admin@teste.com", "123" , TipoUsuario.ADMINISTRADOR);
 
-        usuarioInativoUser = new Usuario();
-        usuarioInativoUser.setNome("User Inativo");
-        usuarioInativoUser.setEmail("user@teste.com");
-        usuarioInativoUser.setSenha("123");
+        usuarioInativoUser = new Usuario("User Inativo", "user@teste.com", "123", TipoUsuario.PROFESSOR);
         usuarioInativoUser.setAtivo(false);
-        usuarioInativoUser.setTipoUsuario(TipoUsuario.PROFESSOR);
 
         usuarioRepository.save(usuarioAtivoAdmin);
         usuarioRepository.save(usuarioInativoUser);

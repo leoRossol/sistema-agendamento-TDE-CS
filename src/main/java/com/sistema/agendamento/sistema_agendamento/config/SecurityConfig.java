@@ -19,7 +19,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/**", "/usuarios/registrar","/h2-console/**", "/swagger-ui.html", "/api-docs/**").permitAll()
+                .requestMatchers("/autenticacao/login", "/usuarios/registrar","/h2-console/**", "/swagger-ui.html", "/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))

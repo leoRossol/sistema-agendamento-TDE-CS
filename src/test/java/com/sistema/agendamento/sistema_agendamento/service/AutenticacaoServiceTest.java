@@ -1,34 +1,76 @@
 package com.sistema.agendamento.sistema_agendamento.service;
-import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
+import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import java.util.Optional;
+
 public class AutenticacaoServiceTest {
 
-    @Autowired
-    private AutenticacaoService authService;
+    @Mock
+    private UsuarioRepository usuarioRepository;
 
-    @Test
-    void loginValidoDeveFuncionar() {
-        Usuario usuario = authService.login("thiago@teste.com", "123456");
-        assertNotNull(usuario);
-        assertEquals("Thiago", usuario.getNome());
+    @InjectMocks
+    private AutenticacaoService autenticacaoService;
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private Usuario usuario;
+
+    @BeforeEach
+    void setup() {
+        MockitoAnnotations.openMocks(this);
+        usuario = new Usuario("Thiago", "thiago@email.com", passwordEncoder.encode("Senha@123"), null);
+        usuario.setAtivo(true);
+        usuario.setId(1L);
     }
 
     @Test
-    void senhaIncorretaDeveFalhar() {
-        RuntimeException exception = assertThrows(RuntimeException.class,
-            () -> authService.login("thiago@teste.com", "senhaerrada"));
+    void loginValidoDeveRetornarToken() {
+        when(usuarioRepository.findByEmail("thiago@email.com")).thenReturn(Optional.of(usuario));
+
+        LoginRequestDTO loginRequest = new LoginRequestDTO();
+        loginRequest.setEmail("thiago@email.com");
+        loginRequest.setSenha("Senha@123");
+
+        LoginResponseDTO response = autenticacaoService.login(loginRequest);
+
+        assertNotNull(response.getToken());
+        assertEquals(usuario.getId(), response.getId());
+        assertEquals(usuario.getEmail(), response.getEmail());
+    }
+
+    @Test
+    void loginComSenhaInvalidaDeveLancarException() {
+        when(usuarioRepository.findByEmail("thiago@email.com")).thenReturn(Optional.of(usuario));
+
+        LoginRequestDTO loginRequest = new LoginRequestDTO();
+        loginRequest.setEmail("thiago@email.com");
+        loginRequest.setSenha("senhaErrada");
+
+        Exception exception = assertThrows(RuntimeException.class, () -> { autenticacaoService.login(loginRequest); });
         assertEquals("Senha incorreta", exception.getMessage());
     }
 
     @Test
-    void usuarioInexistenteDeveFalhar() {
-        RuntimeException exception = assertThrows(RuntimeException.class,
-            () -> authService.login("naoexiste@teste.com", "123456"));
+    void loginComUsuarioInexistenteDeveLancarException() {
+        when(usuarioRepository.findByEmail("naoexiste@email.com")).thenReturn(Optional.empty());
+
+        LoginRequestDTO loginRequest = new LoginRequestDTO();
+        loginRequest.setEmail("naoexiste@email.com");
+        loginRequest.setSenha("Senha@123");
+
+        Exception exception = assertThrows(RuntimeException.class, () -> { autenticacaoService.login(loginRequest); });
         assertEquals("Usuário não encontrado", exception.getMessage());
     }
 }

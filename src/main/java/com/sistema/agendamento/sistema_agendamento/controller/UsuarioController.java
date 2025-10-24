@@ -1,12 +1,13 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
-import com.sistema.agendamento.sistema_agendamento.dto.UsuarioRequestDTO;
-import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
-import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.service.UsuarioService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -16,25 +17,17 @@ import jakarta.validation.Valid;
 public class UsuarioController {
 
     @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private UsuarioService usuarioService;
 
     @PostMapping("/registrar")
-    public ResponseEntity<?> registrar(@Valid @RequestBody UsuarioRequestDTO dto) {
-        if (usuarioRepository.findByEmail(dto.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().body("E-mail já está em uso");
-        }
+    public ResponseEntity<?> registrar(@Valid @RequestBody RegistroRequestDTO dto) {
+        RegistroResponseDTO response = usuarioService.registrarUsuario(dto);
+        return ResponseEntity.ok(response);
+    }
 
-        Usuario usuario = new Usuario();
-        usuario.setNome(dto.getNome());
-        usuario.setEmail(dto.getEmail());
-        usuario.setSenha(passwordEncoder.encode(dto.getSenha())); // criptografa
-        usuario.setAtivo(true);
-        usuario.setTipoUsuario(dto.getTipoUsuario());
-
-        Usuario salvo = usuarioRepository.save(usuario);
-        return ResponseEntity.ok("Usuário registrado com sucesso! ID: " + salvo.getId());
+    @PostMapping("/redefinir-senha")
+    public ResponseEntity<?> redefinirSenha(@RequestBody NovaSenhaRequestDTO dto) {
+        NovaSenhaResponseDTO response = usuarioService.redefinirSenha(dto);
+        return ResponseEntity.ok(response);
     }
 }

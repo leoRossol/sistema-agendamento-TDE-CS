@@ -1,4 +1,4 @@
-package com.sistema.agendamento.sistema_agendamento.dto;
+package com.sistema.agendamento.sistema_agendamento.dto.Usuario;
 
 public class LoginRequestDTO {
     private String email;

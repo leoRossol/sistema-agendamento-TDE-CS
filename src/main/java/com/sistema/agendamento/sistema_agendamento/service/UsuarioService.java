@@ -1,10 +1,19 @@
 package com.sistema.agendamento.sistema_agendamento.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
 import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.EmailJaCadastradoException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.NovaSenhaInvalidaException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.SenhaAntigaException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.UsuarioInativoException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.UsuarioNaoEncontradoException;
 
 @Service
 public class UsuarioService {
@@ -12,34 +21,45 @@ public class UsuarioService {
     private UsuarioRepository usuarioRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public Usuario register(String nome, String email, String senha, String tipoUsuario) {
-        if (usuarioRepository.findByEmail(email).isPresent()) throw new RuntimeException("Email já cadastrado");
+    public RegistroResponseDTO registrarUsuario(RegistroRequestDTO dto) {
+        if (usuarioRepository.findByEmail(dto.getEmail()).isPresent())
+            throw new EmailJaCadastradoException();
 
-        Usuario novoUsuario = new Usuario();
-        novoUsuario.setNome(nome);
-        novoUsuario.setEmail(email);
-        novoUsuario.setSenha(passwordEncoder.encode(senha)); // senha criptografada
-        novoUsuario.setAtivo(true);
+        if (!NovaSenhaValida(dto.getSenha()))
+            throw new NovaSenhaInvalidaException();
 
-        if (tipoUsuario.equalsIgnoreCase("ADMINISTRADOR")) novoUsuario.setTipoUsuario(TipoUsuario.ADMINISTRADOR);
-        else if (tipoUsuario.equalsIgnoreCase("PROFESSOR")) novoUsuario.setTipoUsuario(TipoUsuario.PROFESSOR);
-        else if (tipoUsuario.equalsIgnoreCase("ALUNO")) novoUsuario.setTipoUsuario(TipoUsuario.ALUNO);
-        else throw new RuntimeException("Tipo de usuário inválido");
+        Usuario novoUsuario = new Usuario(dto.getNome(), dto.getEmail(), passwordEncoder.encode(dto.getSenha()), dto.getTipoUsuario());
 
-        if (!NovaSenhaValida(senha)) throw new RuntimeException("Senha não atende aos requisitos de segurança");
+        usuarioRepository.save(novoUsuario);
 
-        return usuarioRepository.save(novoUsuario);
+        RegistroResponseDTO response = new RegistroResponseDTO();
+        response.setMensagem("Usuário registrado com sucesso!");
+        response.setId(novoUsuario.getId());
+
+        return response;
     }
 
-    public Boolean RedefinirSenha(String email, String senhaAntiga, String novaSenha) {
-        Usuario usuario = usuarioRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    public NovaSenhaResponseDTO redefinirSenha(NovaSenhaRequestDTO dto) {
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new UsuarioNaoEncontradoException());
 
-        if (!passwordEncoder.matches(senhaAntiga, usuario.getSenha())) throw new RuntimeException("Senha antiga incorreta");
+        if (!usuario.isAtivo())
+            throw new UsuarioInativoException();
 
-        usuario.setSenha(passwordEncoder.encode(novaSenha));
+        if (!passwordEncoder.matches(dto.getSenhaAntiga(), usuario.getSenha()))
+            throw new SenhaAntigaException();
+
+        if (!NovaSenhaValida(dto.getNovaSenha()))
+            throw new NovaSenhaInvalidaException();
+
+        usuario.setSenha(passwordEncoder.encode(dto.getNovaSenha()));
         usuarioRepository.save(usuario);
-        return true;
+
+        NovaSenhaResponseDTO response = new NovaSenhaResponseDTO();
+        response.setMensagem("Senha redefinida com sucesso!");
+        
+        return response;
     }
+
 
     public Boolean NovaSenhaValida(String senha) {
         return senha != null 
