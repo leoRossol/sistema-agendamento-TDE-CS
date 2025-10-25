@@ -1,10 +1,11 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sistema.agendamento.sistema_agendamento.controller.Usuario.UsuarioController;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaResponseDTO;
-import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroRequestDTO;
-import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RegistroRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RegistroResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
 import com.sistema.agendamento.sistema_agendamento.service.UsuarioService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,7 +43,7 @@ public class UsuarioControllerTest {
 
     @Test
     void registrarUsuarioDeveRetornar200() throws Exception {
-        RegistroRequestDTO registroRequest = new RegistroRequestDTO("Thiago", "thiago@email.com", "Senha@123", TipoUsuario.ALUNO);
+        RegistroRequestDTO registroRequest = new RegistroRequestDTO("Thiago", "thiago@email.com", "Senha@123", TipoUsuario.ALUNO, 222222222);
 
         RegistroResponseDTO responseDTO = new RegistroResponseDTO();
         responseDTO.setMensagem("Usuário registrado com sucesso!");

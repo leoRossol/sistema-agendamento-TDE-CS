@@ -1,4 +1,4 @@
-package com.sistema.agendamento.sistema_agendamento.dto.Usuario;
+package com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin;
 
 public class RegistroResponseDTO {
     private String mensagem;

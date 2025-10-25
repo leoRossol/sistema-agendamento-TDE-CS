@@ -1,6 +1,7 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sistema.agendamento.sistema_agendamento.controller.Usuario.AutenticacaoController;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.service.AutenticacaoService;
@@ -39,9 +40,7 @@ public class AutenticacaoControllerTest {
 
     @Test
     void loginValidoDeveRetornarToken() throws Exception {
-        LoginRequestDTO loginRequest = new LoginRequestDTO();
-        loginRequest.setEmail("thiago@email.com");
-        loginRequest.setSenha("Senha@123");
+        LoginRequestDTO loginRequest = new LoginRequestDTO("thiago@email.com", "Senha@123");
 
         LoginResponseDTO loginResponse = new LoginResponseDTO();
         loginResponse.setMensagem("Login realizado com sucesso!");

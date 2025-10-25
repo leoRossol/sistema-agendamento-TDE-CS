@@ -7,14 +7,14 @@ import jakarta.validation.constraints.Size;
 public class NovaSenhaRequestDTO {
     @NotBlank
     @Email
-    private String email;
+    private final String email;
 
     @NotBlank
-    private String senhaAntiga;
+    private final String senhaAntiga;
 
     @NotBlank
     @Size(min = 6, message = "Senha deve ter ao menos 6 caracteres")
-    private String novaSenha;
+    private final String novaSenha;
     
     public NovaSenhaRequestDTO(String email, String senhaAntiga, String novaSenha) {
         this.email = email;

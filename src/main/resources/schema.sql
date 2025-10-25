@@ -4,5 +4,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email VARCHAR(50),
     senha VARCHAR(255),
     ativo BOOLEAN,
-    tipo_usuario VARCHAR(20) NOT NULL
+    tipo_usuario VARCHAR(20) NOT NULL,
+    matricula INT NOT NULL
 );

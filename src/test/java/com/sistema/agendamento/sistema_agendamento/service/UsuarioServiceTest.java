@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaRequestDTO;
-import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroRequestDTO;
-import com.sistema.agendamento.sistema_agendamento.dto.Usuario.RegistroResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RegistroRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RegistroResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
 import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
 import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
@@ -32,7 +32,7 @@ public class UsuarioServiceTest {
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
-        usuario = new Usuario("Thiago", "thiago@email.com", passwordEncoder.encode("Senha@123"), TipoUsuario.ALUNO);
+        usuario = new Usuario("Thiago", "thiago@email.com", passwordEncoder.encode("Senha@123"), TipoUsuario.ALUNO, 222222222);
         usuario.setAtivo(true);
         usuario.setId(1L);
     }
@@ -42,7 +42,7 @@ public class UsuarioServiceTest {
         when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.empty());
         when(usuarioRepository.save(any(Usuario.class))).thenReturn(usuario);
 
-        RegistroRequestDTO registroRequest = new RegistroRequestDTO("Thiago", "thiago@email.com", "Senha@123", TipoUsuario.ALUNO);
+        RegistroRequestDTO registroRequest = new RegistroRequestDTO("Thiago", "thiago@email.com", "Senha@123", TipoUsuario.ALUNO, 222222222);
         RegistroResponseDTO response = usuarioService.registrarUsuario(registroRequest);
 
         assertEquals("Usuário registrado com sucesso!", response.getMensagem());

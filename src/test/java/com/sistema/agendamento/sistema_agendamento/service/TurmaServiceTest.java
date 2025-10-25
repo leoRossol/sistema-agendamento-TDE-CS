@@ -66,7 +66,7 @@ class TurmaServiceTest {
         disciplina.setNome("Algoritmos");
         disciplina.setCodigo("ALG101");
         
-        professor = new Usuario("Prof. João Silva", "joao@test.com", "senha123" , TipoUsuario.PROFESSOR);
+        professor = new Usuario("Prof. João Silva", "joao@test.com", "senha123" , TipoUsuario.PROFESSOR, 100123456);
         professor.setId(1L);
         turma = new Turma();
         turma.setId(1L);

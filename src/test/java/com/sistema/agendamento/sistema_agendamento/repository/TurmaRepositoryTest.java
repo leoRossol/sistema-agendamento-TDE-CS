@@ -45,7 +45,7 @@ class TurmaRepositoryTest {
         entityManager.persist(disciplina);
         
         // Criar Professor
-        professor = new Usuario("Prof. João Silva", "joao@test.com", "senha123" , TipoUsuario.PROFESSOR);
+        professor = new Usuario("Prof. João Silva", "joao@test.com", "senha123" , TipoUsuario.PROFESSOR, 100123456);
         entityManager.persist(professor);
         
         // Criar Turma
@@ -99,7 +99,7 @@ class TurmaRepositoryTest {
     @Test
     void deveBuscarTurmasPorSemestreAnoEProfessor() {
         // Given
-        Usuario outroProfessor = new Usuario("Prof. Maria Santos", "maria@test.com", "senha123" , TipoUsuario.PROFESSOR);
+        Usuario outroProfessor = new Usuario("Prof. Maria Santos", "maria@test.com", "senha123" , TipoUsuario.PROFESSOR, 100654321);
         entityManager.persist(outroProfessor);
         
         Turma outraTurma = new Turma();

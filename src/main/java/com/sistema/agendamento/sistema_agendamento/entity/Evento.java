@@ -56,6 +56,10 @@ public class Evento {
     @ManyToOne
     @JoinColumn(name = "sala_id")
     private Sala sala;
+
+    @ManyToOne
+    @JoinColumn(name = "usuario_id")
+    private Usuario usuario;
     
     // Construtores
     public Evento() {}

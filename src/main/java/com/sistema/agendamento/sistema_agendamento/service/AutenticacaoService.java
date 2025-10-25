@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
+import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
 import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
 
 import com.sistema.agendamento.sistema_agendamento.exception.Usuario.CredenciaisInvalidasException;
@@ -45,7 +46,7 @@ public class AutenticacaoService {
         response.setId(usuario.getId());
         response.setEmail(usuario.getEmail());
         
-        String token = gerarToken(response);
+        String token = gerarToken(response, usuario.getTipoUsuario());
 
         if (token != null) {
             response.setToken(token);
@@ -55,12 +56,12 @@ public class AutenticacaoService {
         return response;
     }
     
-    private String gerarToken(LoginResponseDTO dto) {
+    private String gerarToken(LoginResponseDTO dto, TipoUsuario usuario) {
     SecretKey chave = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
     return Jwts.builder()
             .setSubject(dto.getEmail()) // identificacao principal do token: email
-            .claim("id", dto.getId())
+            .claim("role", usuario)
             .setIssuedAt(new Date()) // data de emissao
             .setExpiration(new Date(System.currentTimeMillis() + ExpiracaoToken))
             .signWith(chave) // assinatura com chave secreta

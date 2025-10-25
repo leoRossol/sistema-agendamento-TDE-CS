@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
+import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
 import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ public class AutenticacaoServiceTest {
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
-        usuario = new Usuario("Thiago", "thiago@email.com", passwordEncoder.encode("Senha@123"), null);
+        usuario = new Usuario("Thiago", "thiago@email.com", passwordEncoder.encode("Senha@123"), TipoUsuario.ALUNO, 222222222);
         usuario.setAtivo(true);
         usuario.setId(1L);
     }
@@ -39,9 +40,7 @@ public class AutenticacaoServiceTest {
     void loginValidoDeveRetornarToken() {
         when(usuarioRepository.findByEmail("thiago@email.com")).thenReturn(Optional.of(usuario));
 
-        LoginRequestDTO loginRequest = new LoginRequestDTO();
-        loginRequest.setEmail("thiago@email.com");
-        loginRequest.setSenha("Senha@123");
+        LoginRequestDTO loginRequest = new LoginRequestDTO("thiago@email.com", "Senha@123");
 
         LoginResponseDTO response = autenticacaoService.login(loginRequest);
 
@@ -54,9 +53,7 @@ public class AutenticacaoServiceTest {
     void loginComSenhaInvalidaDeveLancarException() {
         when(usuarioRepository.findByEmail("thiago@email.com")).thenReturn(Optional.of(usuario));
 
-        LoginRequestDTO loginRequest = new LoginRequestDTO();
-        loginRequest.setEmail("thiago@email.com");
-        loginRequest.setSenha("senhaErrada");
+        LoginRequestDTO loginRequest = new LoginRequestDTO("thiago@email.com", "senhaErrada");
 
         Exception exception = assertThrows(RuntimeException.class, () -> { autenticacaoService.login(loginRequest); });
         assertEquals("Senha incorreta", exception.getMessage());
@@ -66,9 +63,7 @@ public class AutenticacaoServiceTest {
     void loginComUsuarioInexistenteDeveLancarException() {
         when(usuarioRepository.findByEmail("naoexiste@email.com")).thenReturn(Optional.empty());
 
-        LoginRequestDTO loginRequest = new LoginRequestDTO();
-        loginRequest.setEmail("naoexiste@email.com");
-        loginRequest.setSenha("Senha@123");
+        LoginRequestDTO loginRequest = new LoginRequestDTO("naoexiste@email.com", "Senha@123");
 
         Exception exception = assertThrows(RuntimeException.class, () -> { autenticacaoService.login(loginRequest); });
         assertEquals("Usuário não encontrado", exception.getMessage());
