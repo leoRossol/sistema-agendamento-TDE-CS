@@ -1,8 +1,17 @@
 package com.sistema.agendamento.sistema_agendamento.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Response DTO para alocação de sala")
 public class SalaResponseDTO {
+    
+    @Schema(description = "ID da reserva criada", example = "123")
     private final Long reservaId;
+    
+    @Schema(description = "Indica se houve conflito", example = "false")
     private final boolean conflito;
+    
+    @Schema(description = "Mensagem de resposta", example = "Alocação criada")
     private final String mensagem;
 
     public SalaResponseDTO(Long reservaId, boolean conflito, String mensagem) {
