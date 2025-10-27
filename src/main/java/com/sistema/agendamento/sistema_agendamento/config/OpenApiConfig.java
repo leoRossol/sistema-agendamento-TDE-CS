@@ -19,7 +19,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Sistema de Agendamento - API")
-                        .description("API REST para sistema de agendamento de salas, geração de relatórios de ocupação e alocação de infraestrutura")
+                        .description("API REST para sistema de agendamento de salas, eventos, relatórios de ocupação e alocação de infraestrutura")
                         .version("1.0.0")
                         .contact(new Contact()
                                 .name("Sistema Agendamento")
@@ -38,7 +38,7 @@ public class OpenApiConfig {
     public GroupedOpenApi publicApi() {
         return GroupedOpenApi.builder()
                 .group("sistema-agendamento")
-                .pathsToMatch("/reports/**", "/infra/**", "/catalog/**")
+                .pathsToMatch("/reports/**", "/infra/**", "/catalog/**", "/scheduler/**")
                 .build();
     }
 }
