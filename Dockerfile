@@ -1,4 +1,4 @@
-# Dockerfile para o microserviço de relatórios
+# Dockerfile genérico para microserviços
 FROM openjdk:21-jdk-slim
 
 # Definir diretório de trabalho

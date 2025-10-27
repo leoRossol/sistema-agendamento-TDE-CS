@@ -44,6 +44,31 @@ services:
       timeout: 10s
       retries: 3
 
+  # Infra Service (Microserviço de Infraestrutura)
+  infra-svc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sistema-agendamento-infra
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/sistema_agendamento
+      - SPRING_DATASOURCE_USERNAME=agendamento_user
+      - SPRING_DATASOURCE_PASSWORD=secret
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agendamento-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   mysql_data:
 
