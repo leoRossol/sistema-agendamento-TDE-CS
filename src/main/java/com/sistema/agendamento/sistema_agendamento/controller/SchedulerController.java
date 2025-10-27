@@ -264,8 +264,8 @@ public class SchedulerController {
         try {
             var res = schedulerService.entrarNaWaitlist(req.labId, req.professorId, req.inicio, req.fim);
             WaitlistResponseDTO out = new WaitlistResponseDTO();
-            out.id = res.id();
-            out.position = ((WaitlistResult) res).position();
+            out.id = ((WaitlistResult) res).id();
+            out.position = res.position();
             return ResponseEntity.status(HttpStatus.CREATED).body(out);
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.unprocessableEntity().body(Map.of("code", "ERRO_VALIDACAO", "message", ex.getMessage()));

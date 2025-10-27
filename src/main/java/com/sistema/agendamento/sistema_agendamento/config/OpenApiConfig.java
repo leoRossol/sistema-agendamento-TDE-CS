@@ -1,16 +1,21 @@
 package com.sistema.agendamento.sistema_agendamento.config;
 
+import java.util.List;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.models.GroupedOpenApi;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-import java.util.List;
-
+/**
+ * Configuração do OpenAPI/Swagger para documentação da API.
+ * Configurado especificamente para o microserviço scheduler-svc (US-04).
+ */
 @Configuration
 public class OpenApiConfig {
 
