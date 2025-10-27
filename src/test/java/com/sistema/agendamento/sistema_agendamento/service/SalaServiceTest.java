@@ -85,9 +85,7 @@ class SalaServiceTest {
         var fim = inicio.minusHours(1); // fim antes do inicio
         var req = new SalaRequestDTO(1L, 10L, inicio, fim, null);
 
-        when(turmaRepository.findById(1L)).thenReturn(Optional.of(turma));
-        when(salaRepository.findById(10L)).thenReturn(Optional.of(sala));
-
+        // validação de horário ocorre antes de buscar no banco
         assertThrows(IllegalArgumentException.class, () -> service.alocar(req));
         verify(reservaSalaRepository, never()).save(any());
     }

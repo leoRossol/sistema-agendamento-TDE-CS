@@ -39,6 +39,11 @@ public class SalaService {
 
     @Transactional
     public SalaResponseDTO alocar(SalaRequestDTO req) {
+        // validar horário
+        if (req.fim().isBefore(req.inicio()) || req.fim().isEqual(req.inicio())) {
+            throw new IllegalArgumentException("Horário inválido: fim deve ser após o início");
+        }
+
         Turma turma = turmaRepository.findById(req.turmaId()).orElseThrow(() -> new IllegalArgumentException("Turma não encontrada"));
         Sala sala  = salaRepository.findById(req.salaId()).orElseThrow(() -> new IllegalArgumentException("Sala não encontrada"));
 
