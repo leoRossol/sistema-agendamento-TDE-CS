@@ -1,5 +1,6 @@
 package com.sistema.agendamento.sistema_agendamento.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -11,17 +12,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequest;
+import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequest;
 import com.sistema.agendamento.sistema_agendamento.dto.SugestaoDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Evento;
+import com.sistema.agendamento.sistema_agendamento.entity.Notificacao;
 import com.sistema.agendamento.sistema_agendamento.entity.Sala;
 import com.sistema.agendamento.sistema_agendamento.entity.Turma;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
+import com.sistema.agendamento.sistema_agendamento.entity.WaitlistEntry;
 import com.sistema.agendamento.sistema_agendamento.enums.StatusEventos;
 import com.sistema.agendamento.sistema_agendamento.enums.TipoEvento;
 import com.sistema.agendamento.sistema_agendamento.repository.EventoRepository;
+import com.sistema.agendamento.sistema_agendamento.repository.NotificacaoRepository;
 import com.sistema.agendamento.sistema_agendamento.repository.SalaRepository;
 import com.sistema.agendamento.sistema_agendamento.repository.TurmaRepository;
 import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
+import com.sistema.agendamento.sistema_agendamento.repository.WaitlistRepository;
 
 @Service
 public class SchedulerService {
@@ -30,15 +36,21 @@ public class SchedulerService {
     private final UsuarioRepository usuarioRepository;
     private final TurmaRepository turmaRepository;
     private final SalaRepository salaRepository;
+    private final WaitlistRepository waitlistRepository;
+    private final NotificacaoRepository notificacaoRepository;
 
     public SchedulerService(EventoRepository eventoRepository,
                             UsuarioRepository usuarioRepository,
                             TurmaRepository turmaRepository,
-                            SalaRepository salaRepository) {
+                            SalaRepository salaRepository,
+                            WaitlistRepository waitlistRepository,
+                            NotificacaoRepository notificacaoRepository) {
         this.eventoRepository = eventoRepository;
         this.usuarioRepository = usuarioRepository;
         this.turmaRepository = turmaRepository;
         this.salaRepository = salaRepository;
+        this.waitlistRepository = waitlistRepository;
+        this.notificacaoRepository = notificacaoRepository;
     }
 
     @org.springframework.transaction.annotation.Transactional
@@ -175,6 +187,49 @@ public class SchedulerService {
         return eventoRepository.save(existente);
     }
 
+    /**
+     * PATCH: gerenciamento por professor (edição simples/cancelamento) — valida owner.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public Evento patchEvento(Long id, UpdateEventoRequest req) {
+        Evento existente = eventoRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Evento não encontrado"));
+
+        if (req.ownerId == null)
+            throw new IllegalArgumentException("ownerId é obrigatório");
+        if (existente.getProfessor() == null || !Objects.equals(existente.getProfessor().getId(), req.ownerId))
+            throw new IllegalArgumentException("Somente o professor dono do evento pode gerenciar");
+
+        // Cancelamento
+        if ("CANCELADO".equalsIgnoreCase(req.status)) {
+            if (existente.getStatus() == StatusEventos.CANCELADO) {
+                return existente; // idempotente
+            }
+            if (existente.getStatus() == null || existente.getStatus() == StatusEventos.CONFIRMADO || existente.getStatus() == StatusEventos.AGENDADO) {
+                existente.setStatus(StatusEventos.CANCELADO);
+                Evento salvo = eventoRepository.save(existente);
+                // notificar inscritos (alunos) e waitlist de liberação
+                notificarCancelamentoParaInscritos(salvo);
+                notificarWaitlistLiberacao(salvo);
+                return salvo;
+            } else {
+                throw new IllegalArgumentException("Status atual não permite cancelamento");
+            }
+        }
+
+        // Edicao leve (opcional, sem checar conflito aqui para escopo reduzido)
+        if (req.titulo != null) existente.setTitulo(req.titulo);
+        if (req.descricao != null) existente.setDescricao(req.descricao);
+        if (req.inicio != null) existente.setDataInicio(req.inicio);
+        if (req.fim != null) existente.setDataFim(req.fim);
+        if (req.salaId != null) {
+            Sala sala = salaRepository.findById(req.salaId)
+                    .orElseThrow(() -> new IllegalArgumentException("salaId não encontrado"));
+            existente.setSala(sala);
+        }
+        return eventoRepository.save(existente);
+    }
+
     public List<Evento> calendarioProfessor(Long professorId, LocalDateTime inicio, LocalDateTime fim) {
         Usuario professor = usuarioRepository.findById(professorId)
                 .orElseThrow(() -> new IllegalArgumentException("professorId não encontrado"));
@@ -211,6 +266,18 @@ public class SchedulerService {
             if (!futuros.isEmpty()) result.add(futuros.get(0));
         }
         return result;
+    }
+
+    /**
+     * US-14: obter todas as aulas do dia informado.
+     */
+    public List<Evento> aulasDoDia(LocalDate data) {
+        LocalDateTime inicio = data.atStartOfDay();
+        LocalDateTime fim = inicio.plusDays(1);
+        return eventoRepository.findEventosDoPeriodo(inicio, fim)
+                .stream()
+                .sorted(Comparator.comparing(Evento::getDataInicio))
+                .toList();
     }
 
     private void validar(CreateEventoRequest e) {
@@ -263,4 +330,109 @@ public class SchedulerService {
             this.sugestoes = sugestoes;
         }
     }
+
+    // ===================== WAITLIST (US-11) =====================
+
+    @org.springframework.transaction.annotation.Transactional
+    public WaitlistResult entrarNaWaitlist(Long labId, Long professorId, LocalDateTime inicio, LocalDateTime fim) {
+        if (labId == null) throw new IllegalArgumentException("labId é obrigatório");
+        if (professorId == null) throw new IllegalArgumentException("professorId é obrigatório");
+        if (inicio == null || fim == null || !inicio.isBefore(fim))
+            throw new IllegalArgumentException("janela inválida");
+
+        Sala sala = salaRepository.findById(labId)
+                .orElseThrow(() -> new IllegalArgumentException("labId não encontrado"));
+        Usuario professor = usuarioRepository.findById(professorId)
+                .orElseThrow(() -> new IllegalArgumentException("professorId não encontrado"));
+
+        // posição = quantos já estão na fila (WAITING/NOTIFIED não expirado) antes deste
+        var considerados = java.util.List.of(WaitlistEntry.Status.WAITING, WaitlistEntry.Status.NOTIFIED);
+        int position = (int) waitlistRepository.countBySalaAndStatusIn(sala, considerados) + 1;
+
+        WaitlistEntry entry = new WaitlistEntry();
+        entry.setSala(sala);
+        entry.setProfessor(professor);
+        entry.setJanelaInicio(inicio);
+        entry.setJanelaFim(fim);
+        entry.setStatus(WaitlistEntry.Status.WAITING);
+        WaitlistEntry saved = waitlistRepository.save(entry);
+
+        return new WaitlistResult(saved.getId(), position);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public boolean claimWaitlist(Long entryId, Long professorId) {
+        WaitlistEntry entry = waitlistRepository.findById(entryId)
+                .orElseThrow(() -> new NoSuchElementException("Entrada de waitlist não encontrada"));
+        if (professorId != null && (entry.getProfessor() == null || !Objects.equals(entry.getProfessor().getId(), professorId))) {
+            throw new IllegalArgumentException("Somente o professor da entrada pode dar claim");
+        }
+        // Verifica expiração se foi notificado
+        if (entry.getStatus() == WaitlistEntry.Status.NOTIFIED) {
+            if (entry.getNotifyExpiresAt() != null && LocalDateTime.now().isAfter(entry.getNotifyExpiresAt())) {
+                entry.setStatus(WaitlistEntry.Status.EXPIRED);
+                waitlistRepository.save(entry);
+                return false;
+            }
+        }
+
+        // Somente permite claim quando NOTIFIED ou WAITING e houver disponibilidade
+        // Disponibilidade: sem conflitos naquele intervalo e sala
+        boolean conflitoSala = !eventoRepository.findConflitosAgendamento(entry.getSala(), entry.getJanelaInicio(), entry.getJanelaFim()).isEmpty();
+        if (conflitoSala) {
+            return false;
+        }
+
+        // cria reserva simples (Evento) para o professor
+        Evento e = new Evento();
+        e.setTitulo("Reserva por espera - Sala " + entry.getSala().getNome());
+        e.setDescricao("Reserva realizada via lista de espera");
+        e.setDataInicio(entry.getJanelaInicio());
+        e.setDataFim(entry.getJanelaFim());
+        e.setTipoEvento(TipoEvento.OUTROS);
+        e.setProfessor(entry.getProfessor());
+        e.setTurma(null);
+        e.setSala(entry.getSala());
+        e.setStatus(StatusEventos.AGENDADO);
+        eventoRepository.save(e);
+
+        entry.setStatus(WaitlistEntry.Status.CLAIMED);
+        waitlistRepository.save(entry);
+        return true;
+    }
+
+    private void notificarWaitlistLiberacao(Evento cancelado) {
+        if (cancelado.getSala() == null) return;
+        var candidatos = waitlistRepository.findWaitingOverlapping(cancelado.getSala(), cancelado.getDataInicio(), cancelado.getDataFim());
+        if (candidatos.isEmpty()) return;
+        WaitlistEntry primeiro = candidatos.get(0);
+        // Notifica o primeiro da fila
+        Notificacao n = new Notificacao();
+        n.setUsuario(primeiro.getProfessor());
+        n.setTitulo("Sala liberada: " + cancelado.getSala().getNome());
+        n.setMensagem("Sua janela pediu: " + primeiro.getJanelaInicio() + " - " + primeiro.getJanelaFim() + ". Você tem 2h para confirmar em /scheduler/waitlist/" + primeiro.getId() + "/claim");
+        n.setTipo(Notificacao.TipoNotificacao.SALA_DISPONIVEL);
+        n.setEvento(cancelado);
+        notificacaoRepository.save(n);
+
+        primeiro.setStatus(WaitlistEntry.Status.NOTIFIED);
+        primeiro.setNotifyExpiresAt(LocalDateTime.now().plusHours(2));
+        waitlistRepository.save(primeiro);
+    }
+
+    private void notificarCancelamentoParaInscritos(Evento evento) {
+        Turma turma = evento.getTurma();
+        if (turma == null || turma.getAlunos() == null) return;
+        for (Usuario aluno : turma.getAlunos()) {
+            Notificacao n = new Notificacao();
+            n.setUsuario(aluno);
+            n.setTitulo("Aula cancelada: " + evento.getTitulo());
+            n.setMensagem("O evento foi cancelado. Consulte a agenda para mais detalhes.");
+            n.setTipo(Notificacao.TipoNotificacao.GERAL);
+            n.setEvento(evento);
+            notificacaoRepository.save(n);
+        }
+    }
+
+    public record WaitlistResult(Long id, int position) {}
 }

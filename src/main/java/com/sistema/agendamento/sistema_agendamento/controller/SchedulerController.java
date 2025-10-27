@@ -16,6 +16,7 @@ import java.util.NoSuchElementException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -26,6 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequest;
 import com.sistema.agendamento.sistema_agendamento.dto.EventoResponse;
+import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequest;
+import com.sistema.agendamento.sistema_agendamento.dto.WaitlistRequest;
+import com.sistema.agendamento.sistema_agendamento.dto.WaitlistResponse;
 import com.sistema.agendamento.sistema_agendamento.entity.Evento;
 import com.sistema.agendamento.sistema_agendamento.enums.StatusEventos;
 import com.sistema.agendamento.sistema_agendamento.service.SchedulerService;
@@ -105,6 +109,23 @@ public class SchedulerController {
         }
     }
 
+    // US-12: Gerenciar eventos (PATCH) — cancelar/editar somente se ownerId == professorId do evento
+    @PatchMapping("/eventos/{id}")
+    public ResponseEntity<?> patch(@PathVariable("id") Long id, @RequestBody UpdateEventoRequest body) {
+        try {
+            Evento e = schedulerService.patchEvento(id, body);
+            return ResponseEntity.ok(toResponse(e));
+        } catch (NoSuchElementException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("code", "NAO_ENCONTRADO", "message", "Evento não encontrado"));
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("code", "ERRO_VALIDACAO");
+            err.put("errors", List.of(Map.of("message", ex.getMessage())));
+            return ResponseEntity.unprocessableEntity().body(err);
+        }
+    }
+
     @GetMapping("/eventos/{id}")
     public ResponseEntity<?> obter(@PathVariable Long id) {
         try {
@@ -157,6 +178,54 @@ public class SchedulerController {
         } else {
             var lista = eventos.stream().map(this::toResponse).toList();
             return ResponseEntity.ok(lista);
+        }
+    }
+
+    // US-11: Waitlist — entrar na fila
+    @PostMapping("/waitlist")
+    public ResponseEntity<?> waitlist(@RequestBody WaitlistRequest req) {
+        try {
+            var result = schedulerService.entrarNaWaitlist(req.labId, req.professorId, req.inicio, req.fim);
+            WaitlistResponse resp = new WaitlistResponse();
+            resp.id = result.id();
+            resp.position = result.position();
+            return ResponseEntity.status(HttpStatus.CREATED).body(resp);
+        } catch (IllegalArgumentException | NoSuchElementException ex) {
+            return ResponseEntity.unprocessableEntity().body(Map.of(
+                    "code", "ERRO_VALIDACAO",
+                    "errors", List.of(Map.of("message", ex.getMessage()))
+            ));
+        }
+    }
+
+    // US-11: Waitlist — claim
+    @PostMapping("/waitlist/{id}/claim")
+    public ResponseEntity<?> waitlistClaim(@PathVariable("id") Long id,
+                                           @RequestParam(value = "professorId", required = false) Long professorId) {
+        try {
+            boolean ok = schedulerService.claimWaitlist(id, professorId);
+            if (ok) return ResponseEntity.ok(Map.of("status", "CLAIMED"));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("status", "FAILED"));
+        } catch (NoSuchElementException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("code", "NAO_ENCONTRADO"));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.unprocessableEntity().body(Map.of(
+                    "code", "ERRO_VALIDACAO",
+                    "errors", List.of(Map.of("message", ex.getMessage()))
+            ));
+        }
+    }
+
+    // US-14: Todas as aulas do dia
+    @GetMapping("/aulas")
+    public ResponseEntity<?> aulasDoDia(@RequestParam("data") String dataStr) {
+        try {
+            var data = java.time.LocalDate.parse(dataStr);
+            var eventos = schedulerService.aulasDoDia(data);
+            var lista = eventos.stream().map(this::toResponse).toList();
+            return ResponseEntity.ok(lista);
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("code", "PARAMETRO_INVALIDO", "message", "data invalida (YYYY-MM-DD)"));
         }
     }
 
