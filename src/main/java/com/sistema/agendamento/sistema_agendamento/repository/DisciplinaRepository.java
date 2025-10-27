@@ -9,8 +9,6 @@ import java.util.List;
 @Repository
 public interface DisciplinaRepository extends JpaRepository<Disciplina, Long> {
     
-    List<Disciplina> findByAtivoTrue();
-    
     List<Disciplina> findByCodigoContainingIgnoreCase(String codigo);
     
     List<Disciplina> findByNomeContainingIgnoreCase(String nome);
