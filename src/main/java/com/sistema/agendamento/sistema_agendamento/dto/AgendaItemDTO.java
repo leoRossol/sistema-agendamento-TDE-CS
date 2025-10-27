@@ -19,4 +19,10 @@ public class AgendaItemDTO {
     public Long getTurmaId() { return turmaId; }
     public LocalDateTime getInicio() { return inicio; }
     public LocalDateTime getFim() { return fim; }
+
+    // aliases no estilo record para compatibilidade com testes
+    public Long reservaId() { return reservaId; }
+    public Long turmaId() { return turmaId; }
+    public LocalDateTime inicio() { return inicio; }
+    public LocalDateTime fim() { return fim; }
 }
