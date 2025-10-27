@@ -1,30 +1,186 @@
 package com.sistema.agendamento.sistema_agendamento.repository;
 
-import com.sistema.agendamento.sistema_agendamento.enums.*;
-import com.sistema.agendamento.sistema_agendamento.entity.*;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.stereotype.Repository;
-
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.sistema.agendamento.sistema_agendamento.entity.Evento;
+import com.sistema.agendamento.sistema_agendamento.entity.Sala;
+import com.sistema.agendamento.sistema_agendamento.entity.Turma;
+import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
+
 @Repository
 public interface EventoRepository extends JpaRepository<Evento, Long> {
-    
+
     List<Evento> findByProfessor(Usuario professor);
-    
+
     List<Evento> findBySala(Sala sala);
-    
-    @Query("SELECT e FROM Evento e WHERE e.dataInicio >= :inicio AND e.dataFim <= :fim")
-    List<Evento> findEventosEntreDatas(LocalDateTime inicio, LocalDateTime fim);
-    
-    @Query("SELECT e FROM Evento e WHERE e.sala = :sala AND " +
-           "((e.dataInicio <= :inicio AND e.dataFim > :inicio) OR " +
-           "(e.dataInicio < :fim AND e.dataFim >= :fim) OR " +
-           "(e.dataInicio >= :inicio AND e.dataFim <= :fim))")
-    List<Evento> findConflitosAgendamento(Sala sala, LocalDateTime inicio, LocalDateTime fim);
-    
-    @Query("SELECT e FROM Evento e WHERE DATE(e.dataInicio) = CURRENT_DATE")
-    List<Evento> findEventosDeHoje();
+
+    /**
+     * Eventos que INTERSECTAM o período [inicio, fim)
+     * (inicio incluso, fim exclusivo).
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.dataInicio < :fim
+             and e.dataFim    > :inicio
+           """)
+    List<Evento> findEventosDoPeriodo(@Param("inicio") LocalDateTime inicio,
+                                      @Param("fim")    LocalDateTime fim);
+
+    /**
+     * Versão “entre datas” antiga — se quiser manter o nome, deixe
+     * este método delegar para o canônico de período.
+     */
+    default List<Evento> findEventosEntreDatas(LocalDateTime inicio, LocalDateTime fim) {
+        return findEventosDoPeriodo(inicio, fim);
+    }
+
+    /**
+     * Conflito de sala: qualquer evento na mesma sala que intersecte o período.
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.sala = :sala
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+           """)
+    List<Evento> findConflitosAgendamento(@Param("sala") Sala sala,
+                                          @Param("inicio") LocalDateTime inicio,
+                                          @Param("fim")    LocalDateTime fim);
+
+    /**
+     * Conflito de sala ao atualizar: ignora o próprio evento (por id).
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.sala = :sala
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+             and e.id <> :id
+           """)
+    List<Evento> findConflitosAgendamentoExceptId(@Param("sala") Sala sala,
+                                                   @Param("inicio") LocalDateTime inicio,
+                                                   @Param("fim")    LocalDateTime fim,
+                                                   @Param("id")     Long id);
+
+    /**
+     * Conflito de professor: interseção no período.
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.professor = :professor
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+           """)
+    List<Evento> findConflitosProfessor(@Param("professor") Usuario professor,
+                                        @Param("inicio") LocalDateTime inicio,
+                                        @Param("fim")    LocalDateTime fim);
+
+    /** Atualização: ignora o próprio evento. */
+    @Query("""
+           select e
+           from Evento e
+           where e.professor = :professor
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+             and e.id <> :id
+           """)
+    List<Evento> findConflitosProfessorExceptId(@Param("professor") Usuario professor,
+                                                @Param("inicio") LocalDateTime inicio,
+                                                @Param("fim")    LocalDateTime fim,
+                                                @Param("id")     Long id);
+
+    /**
+     * Conflito de turma: interseção no período.
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.turma = :turma
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+           """)
+    List<Evento> findConflitosTurma(@Param("turma") Turma turma,
+                                    @Param("inicio") LocalDateTime inicio,
+                                    @Param("fim")    LocalDateTime fim);
+
+    /** Atualização: ignora o próprio evento. */
+    @Query("""
+           select e
+           from Evento e
+           where e.turma = :turma
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+             and e.id <> :id
+           """)
+    List<Evento> findConflitosTurmaExceptId(@Param("turma") Turma turma,
+                                            @Param("inicio") LocalDateTime inicio,
+                                            @Param("fim")    LocalDateTime fim,
+                                            @Param("id")     Long id);
+
+    /**
+     * “Hoje” sem usar funções de data no JPQL (evita problemas de dialeto).
+     */
+    default List<Evento> findEventosDeHoje() {
+        LocalDate hoje = LocalDate.now();
+        LocalDateTime inicio = hoje.atStartOfDay();
+        LocalDateTime fim = inicio.plusDays(1);
+        return findEventosDoPeriodo(inicio, fim);
+    }
+
+    /**
+     * Eventos em andamento para um aluno no instante atual (agora).
+     * Critério: dataInicio <= :now AND dataFim > :now e turma do aluno (status ATIVO).
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.dataInicio <= :now
+             and e.dataFim > :now
+             and e.turma in (
+                 select m.turma from Matricula m
+                 where m.aluno.id = :alunoId and m.status = 'ATIVO'
+             )
+           order by e.dataInicio asc
+           """)
+    List<Evento> findEventosAtuaisDoAluno(@Param("alunoId") Long alunoId,
+                                          @Param("now") LocalDateTime now);
+
+    /**
+     * Próximos eventos (futuros) para um aluno, ordenados por dataInicio asc.
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.dataInicio > :now
+             and e.turma in (
+                 select m.turma from Matricula m
+                 where m.aluno.id = :alunoId and m.status = 'ATIVO'
+             )
+           order by e.dataInicio asc
+           """)
+    List<Evento> findProximosEventosDoAluno(@Param("alunoId") Long alunoId,
+                                            @Param("now") LocalDateTime now);
+
+    /** Conflitos para uma lista de salas (qualquer interseção bloqueia). */
+    @Query("""
+           select e
+           from Evento e
+           where e.sala in :salas
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+           """)
+    List<Evento> findConflitosAgendamentoSalas(@Param("salas") List<Sala> salas,
+                                                @Param("inicio") LocalDateTime inicio,
+                                                @Param("fim")    LocalDateTime fim);
 }
