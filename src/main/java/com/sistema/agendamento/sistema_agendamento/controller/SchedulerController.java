@@ -9,6 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +35,7 @@ import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.Sche
 
 @RestController
 @RequestMapping("/scheduler")
+@Tag(name = "Scheduler", description = "API para agendamento de eventos em salas/laboratórios")
 public class SchedulerController {
 
     private final SchedulerService schedulerService;
@@ -37,7 +45,53 @@ public class SchedulerController {
     }
 
     @PostMapping("/eventos")
-    public ResponseEntity<?> criar(@RequestBody CreateEventoRequest body) {
+    @Operation(
+        summary = "Criar evento",
+        description = "Cria um novo evento (aula, prova, seminário) em uma sala, validando conflitos de horário com sala, professor e turma"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Evento criado com sucesso",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = EventoResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Dados inválidos (horário inválido, campos obrigatórios faltando)"
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "Conflito de horário (sala/professor/turma ocupados no período solicitado)",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(example = """
+                    {
+                        "code": "CONFLITO_AGENDA",
+                        "message": "Conflito detectado com recurso/professor/turma.",
+                        "sugestoes": [
+                            {
+                                "inicio": "2025-10-27T19:10:00",
+                                "fim": "2025-10-27T21:10:00",
+                                "recurso": { "tipo": "SALA", "id": 2 },
+                                "motivo": "Outro recurso no mesmo horário"
+                            }
+                        ]
+                    }
+                """)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "422",
+            description = "Validação falhou (professor, turma ou sala não encontrados)"
+        )
+    })
+    public ResponseEntity<?> criar(
+            @Parameter(description = "Dados do evento a ser criado", required = true)
+            @RequestBody CreateEventoRequest body
+    ) {
         try {
             Evento e = schedulerService.criarEvento(body);
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(e));
@@ -61,7 +115,27 @@ public class SchedulerController {
     }
 
     @GetMapping("/eventos/{id}")
-    public ResponseEntity<?> obter(@PathVariable Long id) {
+    @Operation(
+        summary = "Buscar evento por ID",
+        description = "Retorna os detalhes de um evento específico pelo seu ID"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Evento encontrado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = EventoResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Evento não encontrado"
+        )
+    })
+    public ResponseEntity<?> obter(
+            @Parameter(description = "ID do evento") @PathVariable Long id
+    ) {
         try {
             Evento e = schedulerService.obterEvento(id);
             return ResponseEntity.ok(toResponse(e));
@@ -72,8 +146,35 @@ public class SchedulerController {
     }
 
     @GetMapping("/calendario/professores/{id}")
-    public ResponseEntity<?> calendarioProfessor(@PathVariable("id") Long professorId,
-                                                 @RequestParam("periodo") String periodo) {
+    @Operation(
+        summary = "Consultar calendário do professor",
+        description = "Retorna a lista de eventos de um professor para um período específico (formato ISO-8601: inicio/fim)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Calendário retornado com sucesso",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = EventoResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Parâmetro período inválido"
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Professor não encontrado"
+        )
+    })
+    public ResponseEntity<?> calendarioProfessor(
+            @Parameter(description = "ID do professor")
+            @PathVariable("id") Long professorId,
+            
+            @Parameter(description = "Período no formato início/fim (ISO-8601). Ex: 2025-10-01T00:00:00/2025-10-31T23:59:59")
+            @RequestParam("periodo") String periodo
+    ) {
         // Decode URL-encoded values. Some clients may double-encode, so decode until stable.
         String decoded = safeUrlDecode(periodo);
         String[] p = decoded.split("/");
