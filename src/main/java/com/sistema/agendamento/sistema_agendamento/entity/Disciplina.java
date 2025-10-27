@@ -28,35 +28,35 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = false)
 @EntityListeners(AuditingEntityListener.class)
 public class Disciplina {
-
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
+    
     @Column(nullable = false, length = 100)
     private String nome;
-
+    
     @Column(nullable = false, unique = true, length = 20)
     private String codigo;
-
+    
     @Column(name = "carga_horaria", nullable = false)
     private Integer cargaHoraria;
-
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "curso_id", nullable = false)
     private Curso curso;
 
     @Column(nullable = false)
-    private Boolean ativo = true;  // ✅ Campo necessário para o método findByAtivoTrue()
-
+    private Boolean ativo = true; 
+    
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
+    
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
+    
     @OneToMany(mappedBy = "disciplina", cascade = CascadeType.ALL)
     private List<Turma> turmas;
 }
