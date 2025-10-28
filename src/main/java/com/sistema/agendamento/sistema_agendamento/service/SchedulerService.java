@@ -83,6 +83,48 @@ public class SchedulerService {
         return eventoRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Evento não encontrado"));
     }
 
+    public Evento atualizarEvento(Long id, CreateEventoRequest req) {
+        validar(req);
+
+        Evento existente = eventoRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Evento não encontrado"));
+
+        Usuario professor = usuarioRepository.findById(req.professorId)
+                .orElseThrow(() -> new IllegalArgumentException("professorId não encontrado"));
+
+        Turma turma = null;
+        if (req.turmaId != null) {
+            turma = turmaRepository.findById(req.turmaId)
+                    .orElseThrow(() -> new IllegalArgumentException("turmaId não encontrado"));
+        }
+
+        Sala sala = salaRepository.findById(req.salaId)
+                .orElseThrow(() -> new IllegalArgumentException("salaId não encontrado"));
+
+        boolean conflitoSala = !eventoRepository.findConflitosAgendamentoExceptId(sala, req.inicio, req.fim, id).isEmpty();
+        boolean conflitoProfessor = !eventoRepository.findConflitosProfessorExceptId(professor, req.inicio, req.fim, id).isEmpty();
+        boolean conflitoTurma = (turma != null) && !eventoRepository.findConflitosTurmaExceptId(turma, req.inicio, req.fim, id).isEmpty();
+
+        if (conflitoSala || conflitoProfessor || conflitoTurma) {
+            List<SugestaoDTO> sug = sugerir(req, sala);
+            throw new SchedulerConflict("CONFLITO_AGENDA", "Conflito detectado com recurso/professor/turma.", sug);
+        }
+
+        existente.setTitulo(req.titulo);
+        existente.setDescricao(req.descricao);
+        existente.setDataInicio(req.inicio);
+        existente.setDataFim(req.fim);
+        existente.setTipoEvento(TipoEvento.valueOf(req.tipoEvento));
+        existente.setProfessor(professor);
+        existente.setTurma(turma);
+        existente.setSala(sala);
+        if (existente.getStatus() == null) {
+            existente.setStatus(StatusEventos.CONFIRMADO);
+        }
+
+        return eventoRepository.save(existente);
+    }
+
     public List<Evento> calendarioProfessor(Long professorId, LocalDateTime inicio, LocalDateTime fim) {
         Usuario professor = usuarioRepository.findById(professorId)
                 .orElseThrow(() -> new IllegalArgumentException("professorId não encontrado"));

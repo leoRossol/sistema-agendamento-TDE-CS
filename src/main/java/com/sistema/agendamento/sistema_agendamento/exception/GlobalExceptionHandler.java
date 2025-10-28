@@ -1,6 +1,9 @@
 package com.sistema.agendamento.sistema_agendamento.exception;
 
-import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -8,99 +11,64 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.SchedulerConflict;
 
+/**
+ * GlobalExceptionHandler para tratamento centralizado de exceções.
+ * Remove a necessidade de try-catch nos controllers.
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
-    @ExceptionHandler(DisciplinaInvalidaException.class)
-    public ResponseEntity<ErrorResponse> handleDisciplinaInvalida(
-            DisciplinaInvalidaException ex, 
-            HttpServletRequest request) {
-        
-        ErrorResponse error = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.UNPROCESSABLE_ENTITY.value(),
-            "Unprocessable Entity",
-            ex.getMessage(),
-            request.getRequestURI()
+
+    @ExceptionHandler(SchedulerConflict.class)
+    public ResponseEntity<Map<String, Object>> handleSchedulerConflict(SchedulerConflict ex) {
+        Map<String, Object> error = Map.of(
+                "code", ex.code,
+                "message", ex.publicMessage,
+                "sugestoes", ex.sugestoes.stream().map(s -> Map.of(
+                        "inicio", s.inicio,
+                        "fim", s.fim,
+                        "recurso", Map.of("tipo", s.recursoTipo, "id", s.recursoId),
+                        "motivo", s.motivo
+                )).collect(Collectors.toList())
         );
-        
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
-    }
-    
-    @ExceptionHandler(ProfessorInvalidoException.class)
-    public ResponseEntity<ErrorResponse> handleProfessorInvalido(
-            ProfessorInvalidoException ex, 
-            HttpServletRequest request) {
-        
-        ErrorResponse error = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.UNPROCESSABLE_ENTITY.value(),
-            "Unprocessable Entity",
-            ex.getMessage(),
-            request.getRequestURI()
-        );
-        
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
-    }
-    
-    @ExceptionHandler(CodigoDuplicadoException.class)
-    public ResponseEntity<ErrorResponse> handleCodigoDuplicado(
-            CodigoDuplicadoException ex, 
-            HttpServletRequest request) {
-        
-        ErrorResponse error = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.CONFLICT.value(),
-            "Conflict",
-            ex.getMessage(),
-            request.getRequestURI()
-        );
-        
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
-    
-    @ExceptionHandler(TurmaNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTurmaNotFound(
-            TurmaNotFoundException ex, 
-            HttpServletRequest request) {
-        
-        ErrorResponse error = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.NOT_FOUND.value(),
-            "Not Found",
-            ex.getMessage(),
-            request.getRequestURI()
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        Map<String, Object> error = Map.of(
+                "code", "ERRO_VALIDACAO",
+                "message", ex.getMessage()
         );
-        
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
     }
-    
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationErrors(
-            MethodArgumentNotValidException ex, 
-            HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        List<Map<String, String>> errors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> Map.of(
+                        "field", error.getField(),
+                        "message", error.getDefaultMessage()
+                ))
+                .collect(Collectors.toList());
         
-        Map<String, String> validationErrors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            validationErrors.put(fieldName, errorMessage);
-        });
-        
-        ErrorResponse error = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.BAD_REQUEST.value(),
-            "Bad Request",
-            "Erro de validação nos campos",
-            request.getRequestURI(),
-            validationErrors
+        Map<String, Object> error = Map.of(
+                "code", "ERRO_VALIDACAO",
+                "errors", errors
         );
-        
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(java.util.NoSuchElementException.class)
+    public ResponseEntity<Map<String, Object>> handleNoSuchElementException(java.util.NoSuchElementException ex) {
+        Map<String, Object> error = Map.of(
+                "code", "NAO_ENCONTRADO",
+                "message", ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 }
 

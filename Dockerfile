@@ -1,29 +1,26 @@
-# Dockerfile genérico para microserviços
+# Dockerfile para o microserviço scheduler-svc (US-04)
 FROM openjdk:21-jdk-slim
-
-# Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar arquivos de configuração Maven
+# Copiar arquivos do Maven Wrapper
 COPY mvnw .
 COPY mvnw.cmd .
 COPY .mvn .mvn
-COPY pom.xml .
 
-# Baixar dependências
+# Copiar pom.xml e baixar dependências
+COPY pom.xml .
 RUN ./mvnw dependency:go-offline -B
 
 # Copiar código fonte
 COPY src src
 
-# Compilar aplicação
+# Compilar e fazer build
 RUN ./mvnw clean package -DskipTests
 
-# Criar arquivo JAR executável
+# Copiar JAR gerado
 RUN cp target/*.jar app.jar
 
-# Expor porta
 EXPOSE 8080
 
-# Comando para iniciar a aplicação
 ENTRYPOINT ["java", "-jar", "app.jar"]
+

@@ -57,6 +57,22 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
                                           @Param("fim")    LocalDateTime fim);
 
     /**
+     * Conflito de sala ao atualizar: ignora o próprio evento (por id).
+     */
+    @Query("""
+           select e
+           from Evento e
+           where e.sala = :sala
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+             and e.id <> :id
+           """)
+    List<Evento> findConflitosAgendamentoExceptId(@Param("sala") Sala sala,
+                                                   @Param("inicio") LocalDateTime inicio,
+                                                   @Param("fim")    LocalDateTime fim,
+                                                   @Param("id")     Long id);
+
+    /**
      * Conflito de professor: interseção no período.
      */
     @Query("""
@@ -69,6 +85,20 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
     List<Evento> findConflitosProfessor(@Param("professor") Usuario professor,
                                         @Param("inicio") LocalDateTime inicio,
                                         @Param("fim")    LocalDateTime fim);
+
+    /** Atualização: ignora o próprio evento. */
+    @Query("""
+           select e
+           from Evento e
+           where e.professor = :professor
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+             and e.id <> :id
+           """)
+    List<Evento> findConflitosProfessorExceptId(@Param("professor") Usuario professor,
+                                                @Param("inicio") LocalDateTime inicio,
+                                                @Param("fim")    LocalDateTime fim,
+                                                @Param("id")     Long id);
 
     /**
      * Conflito de turma: interseção no período.
@@ -83,6 +113,20 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
     List<Evento> findConflitosTurma(@Param("turma") Turma turma,
                                     @Param("inicio") LocalDateTime inicio,
                                     @Param("fim")    LocalDateTime fim);
+
+    /** Atualização: ignora o próprio evento. */
+    @Query("""
+           select e
+           from Evento e
+           where e.turma = :turma
+             and e.dataInicio < :fim
+             and e.dataFim    > :inicio
+             and e.id <> :id
+           """)
+    List<Evento> findConflitosTurmaExceptId(@Param("turma") Turma turma,
+                                            @Param("inicio") LocalDateTime inicio,
+                                            @Param("fim")    LocalDateTime fim,
+                                            @Param("id")     Long id);
 
     /**
      * “Hoje” sem usar funções de data no JPQL (evita problemas de dialeto).
