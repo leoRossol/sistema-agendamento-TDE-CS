@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -60,6 +59,13 @@ public class SchedulerController {
 
     @PostMapping("/eventos")
     public ResponseEntity<?> criar(@RequestBody CreateEventoRequest body) {
+        // US-09 only on this branch: exigir labs para evitar duplicar US-03 (create simples) já entregue
+        if (body.labs == null || body.labs.size() < 2) {
+            return ResponseEntity.unprocessableEntity().body(Map.of(
+                    "code", "ERRO_VALIDACAO",
+                    "errors", List.of(Map.of("message", "Este branch aceita criação apenas com labs (US-09). Use o endpoint base para criação simples."))
+            ));
+        }
         try {
             Evento e = schedulerService.criarEvento(body);
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(e));
@@ -82,32 +88,7 @@ public class SchedulerController {
         }
     }
 
-    @PutMapping("/eventos/{id}")
-    public ResponseEntity<?> atualizar(@PathVariable("id") Long id, @RequestBody CreateEventoRequest body) {
-        try {
-            Evento e = schedulerService.atualizarEvento(id, body);
-            return ResponseEntity.ok(toResponse(e));
-        } catch (NoSuchElementException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("code", "NAO_ENCONTRADO", "message", "Evento não encontrado"));
-        } catch (IllegalArgumentException ex) {
-            Map<String, Object> err = new LinkedHashMap<>();
-            err.put("code", "ERRO_VALIDACAO");
-            err.put("errors", List.of(Map.of("message", ex.getMessage())));
-            return ResponseEntity.unprocessableEntity().body(err);
-        } catch (SchedulerConflict ex) {
-            Map<String, Object> err = new LinkedHashMap<>();
-            err.put("code", ex.code);
-            err.put("message", ex.publicMessage);
-            err.put("sugestoes", ex.sugestoes.stream().map(s -> Map.of(
-                    "inicio", s.inicio,
-                    "fim", s.fim,
-                    "recurso", Map.of("tipo", s.recursoTipo, "id", s.recursoId),
-                    "motivo", s.motivo
-            )).toList());
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(err);
-        }
-    }
+    // US-04 (PUT) removido deste branch — já entregue no core
 
     // US-12: Gerenciar eventos (PATCH) — cancelar/editar somente se ownerId == professorId do evento
     @PatchMapping("/eventos/{id}")
@@ -126,16 +107,7 @@ public class SchedulerController {
         }
     }
 
-    @GetMapping("/eventos/{id}")
-    public ResponseEntity<?> obter(@PathVariable Long id) {
-        try {
-            Evento e = schedulerService.obterEvento(id);
-            return ResponseEntity.ok(toResponse(e));
-        } catch (NoSuchElementException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("code", "NAO_ENCONTRADO", "message", "Evento não encontrado"));
-        }
-    }
+    // US-03 (GET por id) removido deste branch — já entregue no core
 
     @GetMapping("/calendario/professores/{id}")
     public ResponseEntity<?> calendarioProfessor(@PathVariable("id") Long professorId,

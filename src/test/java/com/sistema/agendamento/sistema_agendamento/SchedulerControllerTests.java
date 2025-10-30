@@ -15,7 +15,6 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -142,88 +141,33 @@ class SchedulerControllerTests {
         return "http://localhost:" + port;
     }
 
-    private ResponseEntity<String> postEvento(
-            String tipoEvento,
-            String titulo,
-            LocalDateTime inicio,
-            LocalDateTime fim
-    ) throws Exception {
-        Map<String, Object> payload = Map.of(
-                "tipoEvento", tipoEvento,
-                "titulo", titulo,
-                "descricao", "Teste",
-                "professorId", professorId,
-                "turmaId", turmaId,
-                "salaId", salaId,
-                "inicio", inicio.toString(),
-                "fim", fim.toString()
-        );
-
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
-        return rest.postForEntity(baseUrl() + "/scheduler/eventos", req, String.class);
+    // helper: cria evento direto no banco (sem usar endpoint US-03)
+    private void createEventoDB(String tipoEvento, String titulo, LocalDateTime inicio, LocalDateTime fim) {
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            em.createNativeQuery("""
+                INSERT INTO eventos (titulo, descricao, tipo_evento, professor_id, turma_id, sala_id, data_inicio, data_fim, status, created_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'CONFIRMADO', CURRENT_TIMESTAMP)
+            """)
+            .setParameter(1, titulo)
+            .setParameter(2, "Teste")
+            .setParameter(3, tipoEvento)
+            .setParameter(4, professorId)
+            .setParameter(5, turmaId)
+            .setParameter(6, salaId)
+            .setParameter(7, inicio)
+            .setParameter(8, fim)
+            .executeUpdate();
+        });
     }
 
-    @Test
-    void criaEvento_semConflito_retorna201_eStatusConfirmadoOuAgendado() throws Exception {
-        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
-        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
-
-        ResponseEntity<String> resp = postEvento("AULA", "Cálculo I", ini, fim);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-
-        JsonNode body = om.readTree(resp.getBody());
-        assertThat(body.path("id").asLong()).isPositive();
-        assertThat(body.path("status").asText()).isIn("CONFIRMADO", "AGENDADO");
-    }
-
-    @Test
-    void criarEvento_comConflitoNaMesmaSala_retorna409() throws Exception {
-        LocalDateTime ini1 = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
-        LocalDateTime fim1 = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
-        ResponseEntity<String> ok = postEvento("AULA", "Cálculo I", ini1, fim1);
-        assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-
-        LocalDateTime ini2 = LocalDateTime.of(2025, 10, 27, 20, 0, 0);
-        LocalDateTime fim2 = LocalDateTime.of(2025, 10, 27, 22, 0, 0);
-        ResponseEntity<String> resp = postEvento("AULA", "Cálculo II", ini2, fim2);
-
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-
-        if (resp.getBody() != null && !resp.getBody().isBlank()) {
-            try {
-                JsonNode body = om.readTree(resp.getBody());
-                if (body.has("sugestoes")) {
-                    assertThat(body.get("sugestoes").isArray()).isTrue();
-                }
-            } catch (Exception ignore) { /* corpo não-JSON: ok */ }
-        }
-    }
-
-    @Test
-    void getEvento_porId_200() throws Exception {
-        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
-        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
-
-        ResponseEntity<String> created = postEvento("AULA", "Cálculo I", ini, fim);
-        Long id = om.readTree(created.getBody()).path("id").asLong();
-
-        ResponseEntity<String> get = rest.getForEntity(baseUrl() + "/scheduler/eventos/" + id, String.class);
-        assertThat(get.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        JsonNode body = om.readTree(get.getBody());
-        assertThat(body.path("id").asLong()).isEqualTo(id);
-        assertThat(body.path("titulo").asText()).isEqualTo("Cálculo I");
-    }
+    // US-03 e US-04 removidos deste branch (create simples, get/id, update)
 
     @Test
     void calendarioProfessor_porPeriodo_200_eTemItens() throws Exception {
-        // garante 1 evento no período
-        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
-        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
-        ResponseEntity<String> created = postEvento("AULA", "Cálculo I", ini, fim);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    // garante 1 evento no período (inserção direta no banco)
+    LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
+    LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
+    createEventoDB("AULA", "Cálculo I", ini, fim);
 
         String periodo = "2025-10-20T00:00:00/2025-10-31T23:59:59";
         String encodedPeriodo = URLEncoder.encode(periodo, StandardCharsets.UTF_8);
@@ -246,11 +190,10 @@ class SchedulerControllerTests {
 
     @Test
     void calendarioProfessor_iCal_textCalendar() throws Exception {
-        // garante 1 evento no período
-        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
-        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
-        ResponseEntity<String> created = postEvento("AULA", "Cálculo I", ini, fim);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    // garante 1 evento no período (inserção direta)
+    LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
+    LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
+    createEventoDB("AULA", "Cálculo I", ini, fim);
 
         String periodo = "2025-10-20T00:00:00/2025-10-31T23:59:59";
         String encodedPeriodo = URLEncoder.encode(periodo, StandardCharsets.UTF_8);
@@ -267,64 +210,7 @@ class SchedulerControllerTests {
         assertThat(resp.getBody()).contains("SUMMARY:Cálculo I");
     }
 
-    @Test
-    void atualizaEvento_sucesso_200() throws Exception {
-        // cria um evento inicialmente em 19-21h
-        LocalDateTime ini = LocalDateTime.of(2025, 10, 27, 19, 0, 0);
-        LocalDateTime fim = LocalDateTime.of(2025, 10, 27, 21, 0, 0);
-        ResponseEntity<String> created = postEvento("AULA", "Cálculo I", ini, fim);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        Long id = om.readTree(created.getBody()).path("id").asLong();
-
-        // atualiza para 21-22h (janela livre)
-        Map<String, Object> payload = Map.of(
-                "tipoEvento", "AULA",
-                "titulo", "Cálculo I",
-                "descricao", "Remarcado",
-                "professorId", professorId,
-                "turmaId", turmaId,
-                "salaId", salaId,
-                "inicio", LocalDateTime.of(2025, 10, 27, 21, 0, 0).toString(),
-                "fim", LocalDateTime.of(2025, 10, 27, 22, 0, 0).toString()
-        );
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
-        ResponseEntity<String> resp = rest.exchange(baseUrl()+"/scheduler/eventos/"+id, HttpMethod.PUT, req, String.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        JsonNode body = om.readTree(resp.getBody());
-        assertThat(body.path("inicio").asText()).startsWith("2025-10-27T21:00:00");
-        assertThat(body.path("fim").asText()).startsWith("2025-10-27T22:00:00");
-    }
-
-    @Test
-    void atualizaEvento_comConflitoNaMesmaSala_409() throws Exception {
-        // Evento A: 19-21h
-        ResponseEntity<String> a = postEvento("AULA", "A", LocalDateTime.of(2025,10,27,19,0,0), LocalDateTime.of(2025,10,27,21,0,0));
-        assertThat(a.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        // Evento B: 21-22h (sem conflito)
-        ResponseEntity<String> b = postEvento("AULA", "B", LocalDateTime.of(2025,10,27,21,0,0), LocalDateTime.of(2025,10,27,22,0,0));
-        assertThat(b.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        Long idB = om.readTree(b.getBody()).path("id").asLong();
-
-        // Tenta mover B para 20-22h (conflita com A entre 20-21)
-        Map<String, Object> payload = Map.of(
-                "tipoEvento", "AULA",
-                "titulo", "B",
-                "descricao", "Move para conflito",
-                "professorId", professorId,
-                "turmaId", turmaId,
-                "salaId", salaId,
-                "inicio", LocalDateTime.of(2025, 10, 27, 20, 0, 0).toString(),
-                "fim", LocalDateTime.of(2025, 10, 27, 22, 0, 0).toString()
-        );
-        HttpHeaders h = new HttpHeaders();
-        h.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(payload), h);
-        ResponseEntity<String> resp = rest.exchange(baseUrl()+"/scheduler/eventos/"+idB, HttpMethod.PUT, req, String.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-    }
+    // US-04 (update) removida neste branch
 
     @Test
     void criaEvento_comLabsConjuntos_multiploTudoOuNada_201() throws Exception {
@@ -423,9 +309,19 @@ class SchedulerControllerTests {
         LocalDateTime ini = LocalDateTime.now().plusHours(4).withSecond(0).withNano(0);
         LocalDateTime fim = ini.plusHours(1);
 
-        // Ocupa l1 nesse horário com um evento simples
-        ResponseEntity<String> ok = postEvento("AULA", "Ocupado L1", ini, fim);
-        assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // Ocupa l1 nesse horário com um evento simples (inserção direta em l1)
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            em.createNativeQuery("""
+                INSERT INTO eventos (titulo, tipo_evento, professor_id, turma_id, sala_id, data_inicio, data_fim, status, created_at)
+                VALUES ('Ocupado L1', 'AULA', ?1, ?2, ?3, ?4, ?5, 'CONFIRMADO', CURRENT_TIMESTAMP)
+            """)
+              .setParameter(1, professorId)
+              .setParameter(2, turmaId)
+              .setParameter(3, l1)
+              .setParameter(4, ini)
+              .setParameter(5, fim)
+              .executeUpdate();
+        });
 
         // Tenta reservar os dois labs juntos -> deve conflitar por causa de l1
         Map<String, Object> payload = Map.of(
@@ -478,13 +374,10 @@ class SchedulerControllerTests {
         Number alunoIdNum = (Number) em.createNativeQuery("SELECT id FROM usuarios WHERE tipo_usuario = 'ALUNO' ORDER BY id DESC LIMIT 1").getSingleResult();
         alunoId = alunoIdNum.longValue();
 
-        // cria eventos: um atual e um próximo para a mesma turma/sala
-        LocalDateTime now = LocalDateTime.now();
-        ResponseEntity<String> eAtual = postEvento("AULA", "Aula Atual", now.minusMinutes(15), now.plusMinutes(45));
-        assertThat(eAtual.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-
-        ResponseEntity<String> eProx = postEvento("AULA", "Aula Próxima", now.plusHours(1), now.plusHours(2));
-        assertThat(eProx.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    // cria eventos: um atual e um próximo para a mesma turma/sala (inserção direta)
+    LocalDateTime now = LocalDateTime.now();
+    createEventoDB("AULA", "Aula Atual", now.minusMinutes(15), now.plusMinutes(45));
+    createEventoDB("AULA", "Aula Próxima", now.plusHours(1), now.plusHours(2));
 
         // chama endpoint
         ResponseEntity<String> resp = rest.getForEntity(baseUrl() + "/scheduler/calendario/alunos/" + alunoId + "/agora", String.class);
