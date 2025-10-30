@@ -62,4 +62,44 @@ public class Usuario {
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<Notificacao> notificacoes;
     
+    public Usuario() {}
+
+    public Usuario(String nome, String email, String senha, TipoUsuario tipoUsuario) {
+        this.nome = nome;
+        this.email = email;
+        this.senha = senha;
+        this.tipoUsuario = tipoUsuario;
+        this.ativo = true;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() { this.updatedAt = LocalDateTime.now(); }
+
+    public void ativar() { this.ativo = true; }
+    public void desativar() { this.ativo = false; }
+    public boolean isAtivo() { return this.ativo != null && this.ativo; }
+    public String getNome() { return nome; }
+    public String getEmail() { return email; }
+    public TipoUsuario getTipoUsuario() { return tipoUsuario; }
+    public Long getId() { return id; } 
+    public String getSenha() { return senha; }
+
+    @Override
+    public String toString() {
+        return "Usuario{" +
+                "id=" + id +
+                ", nome='" + nome + '\'' +
+                ", email='" + email + '\'' +
+                ", tipoUsuario=" + tipoUsuario +
+                ", ativo=" + ativo +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                '}';
+    }
 }

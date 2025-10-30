@@ -2,24 +2,30 @@ package com.sistema.agendamento.sistema_agendamento.controller;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,6 +42,7 @@ import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.Sche
 
 @RestController
 @RequestMapping("/scheduler")
+@Tag(name = "Scheduler", description = "API para agendamento de eventos em salas/laboratórios")
 public class SchedulerController {
 
     private final SchedulerService schedulerService;
@@ -44,28 +51,54 @@ public class SchedulerController {
         this.schedulerService = schedulerService;
     }
 
-    @GetMapping("/calendario/alunos/{id}/agora")
-    public ResponseEntity<?> aulaAtualEProxima(@PathVariable("id") Long alunoId) {
-        try {
-            LocalDateTime now = LocalDateTime.now();
-            var eventos = schedulerService.aulaAtualEProximaDoAluno(alunoId, now);
-            var lista = eventos.stream().map(this::toResponse).toList();
-            return ResponseEntity.ok(lista);
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                    .body(Map.of("code", "ERRO_VALIDACAO", "errors", List.of(Map.of("message", ex.getMessage()))));
-        }
-    }
-
     @PostMapping("/eventos")
-    public ResponseEntity<?> criar(@RequestBody CreateEventoRequest body) {
-        // US-09 only on this branch: exigir labs para evitar duplicar US-03 (create simples) já entregue
-        if (body.labs == null || body.labs.size() < 2) {
-            return ResponseEntity.unprocessableEntity().body(Map.of(
-                    "code", "ERRO_VALIDACAO",
-                    "errors", List.of(Map.of("message", "Este branch aceita criação apenas com labs (US-09). Use o endpoint base para criação simples."))
-            ));
-        }
+    @Operation(
+        summary = "Criar evento",
+        description = "Cria um novo evento (aula, prova, seminário) em uma sala, validando conflitos de horário com sala, professor e turma"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Evento criado com sucesso",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = EventoResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Dados inválidos (horário inválido, campos obrigatórios faltando)"
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "Conflito de horário (sala/professor/turma ocupados no período solicitado)",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(example = """
+                    {
+                        "code": "CONFLITO_AGENDA",
+                        "message": "Conflito detectado com recurso/professor/turma.",
+                        "sugestoes": [
+                            {
+                                "inicio": "2025-10-27T19:10:00",
+                                "fim": "2025-10-27T21:10:00",
+                                "recurso": { "tipo": "SALA", "id": 2 },
+                                "motivo": "Outro recurso no mesmo horário"
+                            }
+                        ]
+                    }
+                """)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "422",
+            description = "Validação falhou (professor, turma ou sala não encontrados)"
+        )
+    })
+    public ResponseEntity<?> criar(
+            @Parameter(description = "Dados do evento a ser criado", required = true)
+            @RequestBody CreateEventoRequest body
+    ) {
         try {
             Evento e = schedulerService.criarEvento(body);
             return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(e));
@@ -88,32 +121,72 @@ public class SchedulerController {
         }
     }
 
-    // US-04 (PUT) removido deste branch — já entregue no core
-
-    // US-12: Gerenciar eventos (PATCH) — cancelar/editar somente se ownerId == professorId do evento
-    @PatchMapping("/eventos/{id}")
-    public ResponseEntity<?> patch(@PathVariable("id") Long id, @RequestBody UpdateEventoRequest body) {
+    @GetMapping("/eventos/{id}")
+    @Operation(
+        summary = "Buscar evento por ID",
+        description = "Retorna os detalhes de um evento específico pelo seu ID"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Evento encontrado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = EventoResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Evento não encontrado"
+        )
+    })
+    public ResponseEntity<?> obter(
+            @Parameter(description = "ID do evento") @PathVariable Long id
+    ) {
         try {
-            Evento e = schedulerService.patchEvento(id, body);
+            Evento e = schedulerService.obterEvento(id);
             return ResponseEntity.ok(toResponse(e));
         } catch (NoSuchElementException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("code", "NAO_ENCONTRADO", "message", "Evento não encontrado"));
-        } catch (IllegalArgumentException ex) {
-            Map<String, Object> err = new LinkedHashMap<>();
-            err.put("code", "ERRO_VALIDACAO");
-            err.put("errors", List.of(Map.of("message", ex.getMessage())));
-            return ResponseEntity.unprocessableEntity().body(err);
         }
     }
 
-    // US-03 (GET por id) removido deste branch — já entregue no core
-
     @GetMapping("/calendario/professores/{id}")
-    public ResponseEntity<?> calendarioProfessor(@PathVariable("id") Long professorId,
-                                                 @RequestParam("periodo") String periodo,
-                                                 @RequestParam(value = "format", required = false) String format,
-                                                 @org.springframework.web.bind.annotation.RequestHeader(value = "Accept", required = false) String accept) {
+    @Operation(
+        summary = "Consultar calendário do professor",
+        description = "Retorna a lista de eventos de um professor para um período específico (formato ISO-8601: inicio/fim)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Calendário retornado com sucesso",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = EventoResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Parâmetro período inválido"
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Professor não encontrado"
+        )
+    })
+    public ResponseEntity<?> calendarioProfessor(
+            @Parameter(description = "ID do professor")
+            @PathVariable("id") Long professorId,
+            
+            @Parameter(description = "Período no formato início/fim (ISO-8601). Ex: 2025-10-01T00:00:00/2025-10-31T23:59:59")
+        @RequestParam("periodo") String periodo,
+
+        @Parameter(description = "Formato opcional de saída. Use 'ical' para iCalendar")
+        @RequestParam(value = "format", required = false) String format,
+
+        @RequestHeader(value = "Accept", required = false) String accept
+    ) {
         // Decode URL-encoded values. Some clients may double-encode, so decode until stable.
         String decoded = safeUrlDecode(periodo);
         String[] p = decoded.split("/");
@@ -132,72 +205,103 @@ public class SchedulerController {
         }
         var eventos = schedulerService.calendarioProfessor(professorId, inicio, fim);
 
-        boolean wantsIcal = false;
-        if (format != null) {
-            String f = format.trim().toLowerCase();
-            wantsIcal = f.equals("ical") || f.equals("ics") || f.equals("text/calendar");
-        }
-        if (!wantsIcal && accept != null) {
-            wantsIcal = accept.toLowerCase().contains("text/calendar");
-        }
-
+        boolean wantsIcal = (format != null && "ical".equalsIgnoreCase(format))
+                || (accept != null && accept.toLowerCase().contains("text/calendar"));
         if (wantsIcal) {
-            String ics = renderICal(eventos, professorId, inicio, fim);
+            String ics = gerarICal(eventos);
             return ResponseEntity.ok()
-                    .header("Content-Type", "text/calendar; charset=utf-8")
-                    .header("Content-Disposition", "attachment; filename=calendario-prof-" + professorId + ".ics")
+                    .header("Content-Type", "text/calendar; charset=UTF-8")
                     .body(ics);
-        } else {
-            var lista = eventos.stream().map(this::toResponse).toList();
-            return ResponseEntity.ok(lista);
         }
+
+        var lista = eventos.stream().map(this::toResponse).toList();
+        return ResponseEntity.ok(lista);
     }
 
-    // US-11: Waitlist — entrar na fila
-    @PostMapping("/waitlist")
-    public ResponseEntity<?> waitlist(@RequestBody WaitlistRequest req) {
+    @GetMapping("/calendario/alunos/{id}/agora")
+    @Operation(
+        summary = "Aula atual e próxima do aluno",
+        description = "Retorna a aula em andamento e a próxima, se houver, para o aluno informado"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Lista retornada"),
+        @ApiResponse(responseCode = "422", description = "alunoId inválido")
+    })
+    public ResponseEntity<?> aulaAtualEProxima(
+            @Parameter(description = "ID do aluno") @PathVariable("id") Long alunoId
+    ) {
         try {
-            var result = schedulerService.entrarNaWaitlist(req.labId, req.professorId, req.inicio, req.fim);
-            WaitlistResponse resp = new WaitlistResponse();
-            resp.id = result.id();
-            resp.position = result.position();
-            return ResponseEntity.status(HttpStatus.CREATED).body(resp);
-        } catch (IllegalArgumentException | NoSuchElementException ex) {
-            return ResponseEntity.unprocessableEntity().body(Map.of(
-                    "code", "ERRO_VALIDACAO",
-                    "errors", List.of(Map.of("message", ex.getMessage()))
-            ));
+            var result = schedulerService.aulaAtualEProximaDoAluno(alunoId, java.time.LocalDateTime.now());
+            var lista = result.stream().map(this::toResponse).toList();
+            return ResponseEntity.ok(lista);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.unprocessableEntity().body(Map.of("code", "ERRO_VALIDACAO", "message", ex.getMessage()));
         }
     }
 
-    // US-11: Waitlist — claim
+    @PatchMapping("/eventos/{id}")
+    @Operation(
+        summary = "Gerenciar evento (PATCH)",
+        description = "Edição leve ou cancelamento por professor dono do evento"
+    )
+    public ResponseEntity<?> patchEvento(@PathVariable("id") Long id, @RequestBody UpdateEventoRequest body) {
+        try {
+            Evento e = schedulerService.patchEvento(id, body);
+            return ResponseEntity.ok(toResponse(e));
+        } catch (NoSuchElementException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("code", "NAO_ENCONTRADO", "message", ex.getMessage()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.unprocessableEntity().body(Map.of("code", "ERRO_VALIDACAO", "message", ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/waitlist")
+    @Operation(
+        summary = "Entrar na lista de espera (lab)",
+        description = "Professor entra na lista de espera para um laboratório e recebe a posição inicial"
+    )
+    public ResponseEntity<?> entrarWaitlist(@RequestBody WaitlistRequest req) {
+        try {
+            var res = schedulerService.entrarNaWaitlist(req.labId, req.professorId, req.inicio, req.fim);
+            WaitlistResponse out = new WaitlistResponse();
+            out.id = res.id();
+            out.position = res.position();
+            return ResponseEntity.status(HttpStatus.CREATED).body(out);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.unprocessableEntity().body(Map.of("code", "ERRO_VALIDACAO", "message", ex.getMessage()));
+        }
+    }
+
     @PostMapping("/waitlist/{id}/claim")
-    public ResponseEntity<?> waitlistClaim(@PathVariable("id") Long id,
+    @Operation(
+        summary = "Confirmar reserva liberada (claim)",
+        description = "Professor notificado confirma a reserva na janela informada"
+    )
+    public ResponseEntity<?> claimWaitlist(@PathVariable("id") Long entryId,
                                            @RequestParam(value = "professorId", required = false) Long professorId) {
         try {
-            boolean ok = schedulerService.claimWaitlist(id, professorId);
-            if (ok) return ResponseEntity.ok(Map.of("status", "CLAIMED"));
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("status", "FAILED"));
+            boolean ok = schedulerService.claimWaitlist(entryId, professorId);
+            return ResponseEntity.ok(Map.of("claimed", ok));
         } catch (NoSuchElementException ex) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("code", "NAO_ENCONTRADO"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("code", "NAO_ENCONTRADO", "message", ex.getMessage()));
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.unprocessableEntity().body(Map.of(
-                    "code", "ERRO_VALIDACAO",
-                    "errors", List.of(Map.of("message", ex.getMessage()))
-            ));
+            return ResponseEntity.unprocessableEntity().body(Map.of("code", "ERRO_VALIDACAO", "message", ex.getMessage()));
         }
     }
 
-    // US-14: Todas as aulas do dia
     @GetMapping("/aulas")
-    public ResponseEntity<?> aulasDoDia(@RequestParam("data") String dataStr) {
+    @Operation(
+        summary = "Aulas do dia",
+        description = "Retorna todas as aulas do dia informado (parâmetro data: yyyy-MM-dd)"
+    )
+    public ResponseEntity<?> aulasDoDia(@RequestParam("data") String data) {
         try {
-            var data = java.time.LocalDate.parse(dataStr);
-            var eventos = schedulerService.aulasDoDia(data);
+            LocalDate d = LocalDate.parse(data);
+            var eventos = schedulerService.aulasDoDia(d);
             var lista = eventos.stream().map(this::toResponse).toList();
             return ResponseEntity.ok(lista);
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("code", "PARAMETRO_INVALIDO", "message", "data invalida (YYYY-MM-DD)"));
+            return ResponseEntity.badRequest().body(Map.of("code", "PARAMETRO_INVALIDO", "message", "data inválida (yyyy-MM-dd)"));
         }
     }
 
@@ -230,54 +334,23 @@ public class SchedulerController {
         return r;
     }
 
-    private String renderICal(java.util.List<Evento> eventos, Long professorId, LocalDateTime inicio, LocalDateTime fim) {
-        String NL = "\r\n";
+    private String gerarICal(List<Evento> eventos) {
         StringBuilder sb = new StringBuilder();
-        sb.append("BEGIN:VCALENDAR").append(NL)
-          .append("VERSION:2.0").append(NL)
-          .append("PRODID:-//sistema-agendamento//scheduler//PT-BR").append(NL)
-          .append("CALSCALE:GREGORIAN").append(NL)
-          .append("METHOD:PUBLISH").append(NL);
-
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
-        String nowUtc = ZonedDateTime.now(ZoneOffset.UTC).format(fmt);
-
+        sb.append("BEGIN:VCALENDAR\n");
+        sb.append("VERSION:2.0\n");
+        sb.append("PRODID:-//sistema-agendamento//PT-BR\n");
         for (Evento e : eventos) {
-            ZonedDateTime zStart = e.getDataInicio().atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC);
-            ZonedDateTime zEnd = e.getDataFim().atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC);
-            String dtStart = zStart.format(fmt);
-            String dtEnd = zEnd.format(fmt);
-            String uid = e.getId() + "@sistema-agendamento";
-            String summary = escapeIcs(e.getTitulo());
-            String description = e.getDescricao() != null ? escapeIcs(e.getDescricao()) : "";
-            String categories = e.getTipoEvento() != null ? e.getTipoEvento().name() : "EVENTO";
-            String location = e.getSala() != null ? (e.getSala().getNome() != null ? e.getSala().getNome() : ("Sala " + e.getSala().getId())) : "";
-
-            sb.append("BEGIN:VEVENT").append(NL)
-              .append("UID:").append(uid).append(NL)
-              .append("DTSTAMP:").append(nowUtc).append(NL)
-              .append("DTSTART:").append(dtStart).append(NL)
-              .append("DTEND:").append(dtEnd).append(NL)
-              .append("SUMMARY:").append(summary).append(NL)
-              .append("DESCRIPTION:").append(description).append(NL)
-              .append("CATEGORIES:").append(categories).append(NL);
-            if (!location.isBlank()) {
-                sb.append("LOCATION:").append(escapeIcs(location)).append(NL);
-            }
-            sb.append("END:VEVENT").append(NL);
+            sb.append("BEGIN:VEVENT\n");
+            // Simplificação: datas locais sem timezone (para testes basta conter os campos)
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+            if (e.getDataInicio() != null) sb.append("DTSTART:").append(e.getDataInicio().format(fmt)).append("\n");
+            if (e.getDataFim() != null) sb.append("DTEND:").append(e.getDataFim().format(fmt)).append("\n");
+            if (e.getTitulo() != null) sb.append("SUMMARY:").append(e.getTitulo()).append("\n");
+            if (e.getDescricao() != null) sb.append("DESCRIPTION:").append(e.getDescricao()).append("\n");
+            if (e.getSala() != null) sb.append("LOCATION:").append(e.getSala().getNome()).append("\n");
+            sb.append("END:VEVENT\n");
         }
-
-        sb.append("END:VCALENDAR").append(NL);
+        sb.append("END:VCALENDAR\n");
         return sb.toString();
-    }
-
-    private static String escapeIcs(String s) {
-        // Escape backslash, comma, semicolon and newlines per RFC 5545
-        String out = s.replace("\\", "\\\\")
-                      .replace(",", "\\,")
-                      .replace(";", "\\;")
-                      .replace("\r\n", "\\n")
-                      .replace("\n", "\\n");
-        return out;
     }
 }

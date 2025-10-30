@@ -14,11 +14,13 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 @Entity
-@Table(name = "turmas")
+@Table(name = "turmas", 
+       uniqueConstraints = @UniqueConstraint(columnNames = {"codigo", "semestre", "ano"}))
 public class Turma {
     
     @Id
@@ -26,7 +28,7 @@ public class Turma {
     private Long id;
     
     @NotBlank
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, length = 20)
     private String codigo;
     
     @NotBlank
