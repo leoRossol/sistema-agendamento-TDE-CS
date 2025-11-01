@@ -19,7 +19,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,15 +29,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.EventoResponse;
-import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.WaitlistRequest;
-import com.sistema.agendamento.sistema_agendamento.dto.WaitlistResponse;
+import com.sistema.agendamento.sistema_agendamento.dto.CreateEventoRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.EventoResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.UpdateEventoRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.WaitlistRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.WaitlistResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Evento;
 import com.sistema.agendamento.sistema_agendamento.enums.StatusEventos;
 import com.sistema.agendamento.sistema_agendamento.service.SchedulerService;
 import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.SchedulerConflict;
+import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.WaitlistResult;
 
 @RestController
 @RequestMapping("/scheduler")
@@ -62,7 +62,7 @@ public class SchedulerController {
             description = "Evento criado com sucesso",
             content = @Content(
                 mediaType = "application/json",
-                schema = @Schema(implementation = EventoResponse.class)
+                schema = @Schema(implementation = EventoResponseDTO.class)
             )
         ),
         @ApiResponse(
@@ -97,7 +97,7 @@ public class SchedulerController {
     })
     public ResponseEntity<?> criar(
             @Parameter(description = "Dados do evento a ser criado", required = true)
-            @RequestBody CreateEventoRequest body
+            @RequestBody CreateEventoRequestDTO body
     ) {
         try {
             Evento e = schedulerService.criarEvento(body);
@@ -132,7 +132,7 @@ public class SchedulerController {
             description = "Evento encontrado",
             content = @Content(
                 mediaType = "application/json",
-                schema = @Schema(implementation = EventoResponse.class)
+                schema = @Schema(implementation = EventoResponseDTO.class)
             )
         ),
         @ApiResponse(
@@ -163,7 +163,7 @@ public class SchedulerController {
             description = "Calendário retornado com sucesso",
             content = @Content(
                 mediaType = "application/json",
-                schema = @Schema(implementation = EventoResponse.class)
+                schema = @Schema(implementation = EventoResponseDTO.class)
             )
         ),
         @ApiResponse(
@@ -244,7 +244,7 @@ public class SchedulerController {
         summary = "Gerenciar evento (PATCH)",
         description = "Edição leve ou cancelamento por professor dono do evento"
     )
-    public ResponseEntity<?> patchEvento(@PathVariable("id") Long id, @RequestBody UpdateEventoRequest body) {
+    public ResponseEntity<?> patchEvento(@PathVariable("id") Long id, @RequestBody UpdateEventoRequestDTO body) {
         try {
             Evento e = schedulerService.patchEvento(id, body);
             return ResponseEntity.ok(toResponse(e));
@@ -260,11 +260,11 @@ public class SchedulerController {
         summary = "Entrar na lista de espera (lab)",
         description = "Professor entra na lista de espera para um laboratório e recebe a posição inicial"
     )
-    public ResponseEntity<?> entrarWaitlist(@RequestBody WaitlistRequest req) {
+    public ResponseEntity<?> entrarWaitlist(@RequestBody WaitlistRequestDTO req) {
         try {
             var res = schedulerService.entrarNaWaitlist(req.labId, req.professorId, req.inicio, req.fim);
-            WaitlistResponse out = new WaitlistResponse();
-            out.id = res.id();
+            WaitlistResponseDTO out = new WaitlistResponseDTO();
+            out.id = ((WaitlistResult) res).id();
             out.position = res.position();
             return ResponseEntity.status(HttpStatus.CREATED).body(out);
         } catch (IllegalArgumentException ex) {
@@ -317,8 +317,8 @@ public class SchedulerController {
         return curr;
     }
 
-    private EventoResponse toResponse(Evento e) {
-        EventoResponse r = new EventoResponse();
+    private EventoResponseDTO toResponse(Evento e) {
+        EventoResponseDTO r = new EventoResponseDTO();
         r.id = e.getId();
         r.status = e.getStatus() == null ? StatusEventos.CONFIRMADO.name() : e.getStatus().name();
         r.tipo = e.getTipoEvento() != null ? e.getTipoEvento().name() : null;

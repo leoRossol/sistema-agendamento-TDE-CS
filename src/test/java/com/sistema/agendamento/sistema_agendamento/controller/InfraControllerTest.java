@@ -1,5 +1,7 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
+import com.sistema.agendamento.sistema_agendamento.dto.SalaReservadaDTO;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistema.agendamento.sistema_agendamento.dto.AgendaItemDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.SalaRequestDTO;
@@ -76,5 +78,32 @@ class InfraControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].reservaId").value(1))
             .andExpect(jsonPath("$[0].turmaId").value(1));
+    }
+
+    @Test
+    void getReservas_retorna200ComSalas() throws Exception {
+        when(salaService.listarSalasReservadas(null, null))
+                .thenReturn(java.util.List.of(new SalaReservadaDTO(1L, "Sala 1", "S1")));
+        mvc.perform(get("/infra/reservas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].nome").value("Sala 1"));
+    }
+
+    @Test
+    void getReservas_comPeriodo_ok() throws Exception {
+        when(salaService.listarSalasReservadas(
+                java.time.LocalDateTime.parse("2025-10-01T00:00:00"), 
+                java.time.LocalDateTime.parse("2025-10-31T23:59:59")))
+                .thenReturn(java.util.List.of());
+        mvc.perform(get("/infra/reservas")
+                .param("from", "2025-10-01T00:00:00")
+                .param("to", "2025-10-01T23:59:59"))
+        .andExpect(status().isOk());
+    }
+
+    @Test
+    void getReservas_apenasUmParametro_retorna400() throws Exception {
+        mvc.perform(get("/infra/reservas").param("from", "2025-10-01t00:00:00"))
+                .andExpect(status().isBadRequest());
     }
 }

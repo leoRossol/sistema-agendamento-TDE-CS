@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.sistema.agendamento.sistema_agendamento.service.SchedulerService.SchedulerConflict;
-/* Same-package exception types are referenced without explicit imports */
 
 @RestControllerAdvice
 public class RestExceptionHandler {
@@ -119,6 +118,48 @@ public class RestExceptionHandler {
 
     private String defaultMessage(FieldError error) {
         return error.getDefaultMessage() != null ? error.getDefaultMessage() : (error.getField() + " inválido");
+    }
+
+    @ExceptionHandler(SchedulerConflict.class)
+    public ResponseEntity<Map<String, Object>> handleSchedulerConflict(SchedulerConflict ex) {
+        Map<String, Object> error = Map.of(
+                "code", ex.code,
+                "message", ex.publicMessage,
+                "sugestoes", ex.sugestoes.stream().map(s -> Map.of(
+                        "inicio", s.inicio,
+                        "fim", s.fim,
+                        "recurso", Map.of("tipo", s.recursoTipo, "id", s.recursoId),
+                        "motivo", s.motivo
+                )).collect(Collectors.toList())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        List<Map<String, String>> errors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> Map.of(
+                        "field", error.getField(),
+                        "message", error.getDefaultMessage()
+                ))
+                .collect(Collectors.toList());
+        
+        Map<String, Object> error = Map.of(
+                "code", "ERRO_VALIDACAO",
+                "errors", errors
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(java.util.NoSuchElementException.class)
+    public ResponseEntity<Map<String, Object>> handleNoSuchElementException(java.util.NoSuchElementException ex) {
+        Map<String, Object> error = Map.of(
+                "code", "NAO_ENCONTRADO",
+                "message", ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 }
 

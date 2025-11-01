@@ -3,10 +3,7 @@ package com.sistema.agendamento.sistema_agendamento.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
-@Schema(description = "Response DTO para evento")
-public class EventoResponse {
-    
-    @Schema(description = "ID do evento", example = "1")
+public class EventoResponseDTO {
     public Long id;
     
     @Schema(description = "Status do evento (AGENDADO, CONFIRMADO, CANCELADO)", example = "CONFIRMADO")

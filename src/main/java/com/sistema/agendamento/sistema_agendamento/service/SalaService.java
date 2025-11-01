@@ -3,6 +3,7 @@ package com.sistema.agendamento.sistema_agendamento.service;
 import com.sistema.agendamento.sistema_agendamento.dto.SalaRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.SalaResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.AgendaItemDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.SalaReservadaDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Sala;
 import com.sistema.agendamento.sistema_agendamento.entity.SalaEquipamento;
 import com.sistema.agendamento.sistema_agendamento.entity.Turma;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
 
@@ -90,6 +92,17 @@ public class SalaService {
                 r.getDataInicio(), 
                 r.getDataFim()
                 ))
+            .toList();
+    }
+
+    @Transactional (readOnly = true)
+    public List<SalaReservadaDTO> listarSalasReservadas(LocalDateTime from, LocalDateTime to){
+        var salas = (from != null && to != null)
+            ? reservaSalaRepository.salasReservadasNoPeriodo(from, to)
+            : reservaSalaRepository.todasSalasReservadas();
+
+        return salas.stream()
+            .map(s -> new SalaReservadaDTO(s.getId(), s.getNome(), s.getNumero()))
             .toList();
     }
 
