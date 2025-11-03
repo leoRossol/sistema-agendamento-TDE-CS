@@ -2,8 +2,7 @@ package com.sistema.agendamento.sistema_agendamento.entity;
 
 import jakarta.persistence.*;
 import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -14,8 +13,10 @@ import java.util.List;
 @Entity
 @Table(name = "usuarios")
 @Data
+@Builder
 @EqualsAndHashCode(callSuper = false)
 @EntityListeners(AuditingEntityListener.class)
+@AllArgsConstructor
 public class Usuario {
     
     @Id
@@ -64,14 +65,6 @@ public class Usuario {
     
     public Usuario() {}
 
-    public Usuario(String nome, String email, String senha, TipoUsuario tipoUsuario) {
-        this.nome = nome;
-        this.email = email;
-        this.senha = senha;
-        this.tipoUsuario = tipoUsuario;
-        this.ativo = true;
-    }
-
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -80,15 +73,6 @@ public class Usuario {
 
     @PreUpdate
     protected void onUpdate() { this.updatedAt = LocalDateTime.now(); }
-
-    public void ativar() { this.ativo = true; }
-    public void desativar() { this.ativo = false; }
-    public boolean isAtivo() { return this.ativo != null && this.ativo; }
-    public String getNome() { return nome; }
-    public String getEmail() { return email; }
-    public TipoUsuario getTipoUsuario() { return tipoUsuario; }
-    public Long getId() { return id; } 
-    public String getSenha() { return senha; }
 
     @Override
     public String toString() {
