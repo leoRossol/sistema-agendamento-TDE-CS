@@ -34,12 +34,12 @@ public class AutenticacaoService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(); // armazenamos somente o encoder, nao a senha em si
 
     public LoginResponseDTO login(LoginRequestDTO dto) {
-        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new UsuarioNaoEncontradoException());
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow(UsuarioNaoEncontradoException::new);
 
         if (!passwordEncoder.matches(dto.getSenha(), usuario.getSenha())) 
             throw new CredenciaisInvalidasException();
 
-        if (usuario.isAtivo() == false)
+        if (!usuario.isAtivo())
             throw new UsuarioInativoException();
 
         LoginResponseDTO response = new LoginResponseDTO();

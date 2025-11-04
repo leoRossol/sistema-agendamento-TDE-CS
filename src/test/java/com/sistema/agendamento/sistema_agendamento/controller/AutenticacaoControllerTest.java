@@ -1,7 +1,6 @@
 package com.sistema.agendamento.sistema_agendamento.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sistema.agendamento.sistema_agendamento.controller.Usuario.AutenticacaoController;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginRequestDTO;
 import com.sistema.agendamento.sistema_agendamento.dto.Usuario.LoginResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.service.AutenticacaoService;

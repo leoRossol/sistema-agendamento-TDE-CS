@@ -1,4 +1,4 @@
-package com.sistema.agendamento.sistema_agendamento.controller.Usuario;
+package com.sistema.agendamento.sistema_agendamento.controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
