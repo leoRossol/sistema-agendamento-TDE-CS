@@ -9,9 +9,10 @@ services:
       - 'MYSQL_ROOT_PASSWORD=verysecret'
       - 'MYSQL_USER=agendamento_user'
     ports:
-      - '3306:3306'
+      - '3307:3306'
     volumes:
       - mysql_data:/var/lib/mysql
+#      - ./seed/data.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - agendamento-network
     healthcheck:
@@ -33,6 +34,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=secret
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=docker
+      - JWT_SECRET=bac994f97a543496598f5a167ff9344c2e964c61e0eee090b49cb4de57bfe785
     depends_on:
       mysql:
         condition: service_healthy
