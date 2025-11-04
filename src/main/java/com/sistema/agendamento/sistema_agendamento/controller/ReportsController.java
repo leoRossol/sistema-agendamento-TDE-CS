@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,6 +27,7 @@ public class ReportsController {
 
     private final ReportsService reportsService;
 
+    @PreAuthorize("hasAnyRole('ADMINISTADOR', 'COORDENADOR')")
     @GetMapping("/ocupacao")
     @Operation(
         summary = "Gerar relatório de ocupação",
