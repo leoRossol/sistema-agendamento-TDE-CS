@@ -1,14 +1,13 @@
 package com.sistema.agendamento.sistema_agendamento.dto.Usuario;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+@AllArgsConstructor
 public class LoginRequestDTO {
-    private final String email;
-    private final String senha;
-
-    public LoginRequestDTO(String email, String senha) {
-        this.email = email;
-        this.senha = senha;
-    }
-
-    public String getEmail() { return email; }
-    public String getSenha() { return senha; }
+    private String email;
+    private String senha;
 }

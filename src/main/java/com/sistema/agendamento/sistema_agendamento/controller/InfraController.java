@@ -99,6 +99,7 @@ public class InfraController {
         return salaService.agendaSalaNoMes(id, periodo);
     }
 
+    @PreAuthorize("hasAnyRole('PROFESSOR')")
     @GetMapping("/reservas")
     public ResponseEntity<java.util.List<SalaReservadaDTO>> getSalasReservadas(
         @RequestParam(value = "from", required = false)
@@ -109,10 +110,6 @@ public class InfraController {
         if ((from == null) != (to == null)) {
             throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
             "Informe ambos os parametros from e to ou nenhum");
-        }
-        if (from == null && to != null && from.isAfter(to)){
-            throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST,
-            "From deve ser <= to");
         }
         return ResponseEntity.ok(salaService.listarSalasReservadas(from, to));
     }

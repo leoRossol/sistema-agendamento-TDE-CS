@@ -4,6 +4,7 @@ import java.util.Date;
 
 import javax.crypto.SecretKey;
 
+import com.sistema.agendamento.sistema_agendamento.exception.LoginException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,9 +35,9 @@ public class AutenticacaoService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(); // armazenamos somente o encoder, nao a senha em si
 
     public LoginResponseDTO login(LoginRequestDTO dto) {
-        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow(UsuarioNaoEncontradoException::new);
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new LoginException("User not find"));
 
-        if (!passwordEncoder.matches(dto.getSenha(), usuario.getSenha())) 
+        if (!passwordEncoder.matches(dto.getSenha(), usuario.getSenha()))
             throw new CredenciaisInvalidasException();
 
         if (!usuario.isAtivo())

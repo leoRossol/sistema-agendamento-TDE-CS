@@ -6,6 +6,7 @@ import java.util.Collections;
 
 import javax.crypto.SecretKey;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
@@ -47,20 +49,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .getBody();
 
                 String email = claims.getSubject();
-                String role = claims.get("role", String.class);
+                String role = claims.get("tipo", String.class);
+                if (role == null) {
+                    throw new JwtException("Claim 'tipo' (Role) não encontrada no token.");
+                }
 
-                // cria a autenticação com role extraida do token
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 email,
                                 null,
-                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
+                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
                         );
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            } catch (Exception e) {
-                // token inválido ou expirado -> limpa contexto
+            } catch (JwtException e) {
+                System.err.println("Falha na validação do Token: " + e.getMessage());
                 SecurityContextHolder.clearContext();
             }
         }
