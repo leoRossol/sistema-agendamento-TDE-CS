@@ -1,49 +1,98 @@
 package com.sistema.agendamento.sistema_agendamento.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.NovaSenhaResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RegistroRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RegistroResponseDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RemoverUsuarioRequestDTO;
+import com.sistema.agendamento.sistema_agendamento.dto.Usuario.Admin.RemoverUsuarioResponseDTO;
 import com.sistema.agendamento.sistema_agendamento.entity.Usuario;
 import com.sistema.agendamento.sistema_agendamento.repository.UsuarioRepository;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import com.sistema.agendamento.sistema_agendamento.enums.TipoUsuario;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.EmailJaCadastradoException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.MatriculaInvalidaException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.NovaSenhaInvalidaException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.SenhaAntigaException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.UsuarioInativoException;
+import com.sistema.agendamento.sistema_agendamento.exception.Usuario.UsuarioNaoEncontradoException;
 
 @Service
 public class UsuarioService {
+
+//#region ADMIN
     @Autowired
     private UsuarioRepository usuarioRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public Usuario register(String nome, String email, String senha, String tipoUsuario) {
-        if (usuarioRepository.findByEmail(email).isPresent()) throw new RuntimeException("Email já cadastrado");
+    public RegistroResponseDTO registrarUsuario(RegistroRequestDTO dto) {
+        if (usuarioRepository.findByEmail(dto.getEmail()).isPresent())
+            throw new EmailJaCadastradoException();
 
-        Usuario novoUsuario = new Usuario();
-        novoUsuario.setNome(nome);
-        novoUsuario.setEmail(email);
-        novoUsuario.setSenha(passwordEncoder.encode(senha)); // senha criptografada
-        novoUsuario.setTipoUsuario(TipoUsuario.PROFESSOR); // TO DO: desmockar 
-        novoUsuario.setAtivo(true);
+        if (usuarioRepository.findByMatricula(dto.getMatricula()).isPresent())
+            throw new MatriculaInvalidaException();
 
-        if (!NovaSenhaValida(senha)) throw new RuntimeException("Senha não atende aos requisitos de segurança");
+        if (!novaSenhaValida(dto.getSenha()))
+            throw new NovaSenhaInvalidaException();
 
-        return usuarioRepository.save(novoUsuario);
+        Usuario novoUsuario = new Usuario(dto.getNome(), dto.getEmail(), passwordEncoder.encode(dto.getSenha()), dto.getTipoUsuario(), dto.getMatricula());
+
+        usuarioRepository.save(novoUsuario);
+
+        RegistroResponseDTO response = new RegistroResponseDTO();
+        response.setMensagem("Usuário registrado com sucesso!");
+        response.setId(novoUsuario.getId());
+
+        return response;
     }
 
-    public Boolean RedefinirSenha(String email, String senhaAntiga, String novaSenha) {
-        Usuario usuario = usuarioRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    public RemoverUsuarioResponseDTO removerUsuario(RemoverUsuarioRequestDTO dto) {
+        Usuario usuario = usuarioRepository.findById(dto.getIdUsuario()).orElseThrow(() -> new UsuarioNaoEncontradoException());
 
-        if (!passwordEncoder.matches(senhaAntiga, usuario.getSenha())) throw new RuntimeException("Senha antiga incorreta");
-
-        usuario.setSenha(passwordEncoder.encode(novaSenha));
+        usuario.desativar(); // estamos somente desativando o usuario
         usuarioRepository.save(usuario);
-        return true;
+        // usuarioRepository.delete(usuario);
+
+        RemoverUsuarioResponseDTO response = new RemoverUsuarioResponseDTO();
+        response.setMensagem("Usuário removido com sucesso!");
+        response.setIdUsuarioRemovido(dto.getIdUsuario());
+
+        return response;
+    }
+//#endregion ADMIN
+
+    public NovaSenhaResponseDTO redefinirSenha(NovaSenhaRequestDTO dto) {
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElseThrow(() -> new UsuarioNaoEncontradoException());
+
+        if (!usuario.isAtivo())
+            throw new UsuarioInativoException();
+
+        if (!passwordEncoder.matches(dto.getSenhaAntiga(), usuario.getSenha()))
+            throw new SenhaAntigaException();
+
+        if (!novaSenhaValida(dto.getNovaSenha()))
+            throw new NovaSenhaInvalidaException();
+
+        if (passwordEncoder.matches(dto.getNovaSenha(), usuario.getSenha()))
+            throw new NovaSenhaInvalidaException("A nova senha deve ser diferente da senha antiga.");
+
+        usuario.setSenha(passwordEncoder.encode(dto.getNovaSenha()));
+        usuarioRepository.save(usuario);
+
+        NovaSenhaResponseDTO response = new NovaSenhaResponseDTO();
+        response.setMensagem("Senha redefinida com sucesso!");
+
+        return response;
     }
 
-    public Boolean NovaSenhaValida(String senha) {
+    public Boolean novaSenhaValida(String senha) {
         return senha != null 
         && senha.length() >= 6              
         && senha.length() <= 20 
         && senha.matches(".*\\d.*") // pelo menos um digito
         && senha.matches(".*[A-Z].*") // pelo menos uma letra maiuscula
         && senha.matches(".*[a-z].*") // pelo menos uma letra minuscula
-        && senha.matches(".*[!@#$%^&*()].*"); // pelo menos um caractere especial
+        && senha.matches(".*[!@#$%^&*()\\[\\]{}<>?~].*"); // pelo menos um caractere especial
     }
 }

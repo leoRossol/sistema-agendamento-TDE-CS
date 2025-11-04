@@ -12,9 +12,14 @@ import java.util.Optional;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByEmail(String email);
 
+    Optional<Usuario> findByMatricula(int matricula);
+
     List<Usuario> findByTipoUsuario(TipoUsuario tipoUsuario);
 
     List<Usuario> findByAtivoTrue();
+
+    @Query("SELECT u FROM Usuario u WHERE u.email = :email AND u.ativo = true")
+    Optional<Usuario> findByEmailAndAtivoTrue(String email);
 
     @Query("SELECT u FROM Usuario u WHERE u.tipoUsuario = :tipo AND u.ativo = true")
     List<Usuario> findByTipoUsuarioAndAtivo(TipoUsuario tipo);
