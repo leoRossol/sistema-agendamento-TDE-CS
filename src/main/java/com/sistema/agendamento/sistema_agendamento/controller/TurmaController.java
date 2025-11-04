@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,7 +26,8 @@ import java.util.List;
 public class TurmaController {
     
     private final TurmaService turmaService;
-    
+
+    @PreAuthorize("hasAnyRole('ADMINISTADOR', 'COORDENADOR')")
     @PostMapping
     @Operation(
         summary = "Criar uma nova turma",
@@ -59,7 +61,7 @@ public class TurmaController {
         TurmaResponseDTO response = turmaService.criarTurma(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+
     @GetMapping("/{id}")
     @Operation(
         summary = "Buscar turma por ID",
