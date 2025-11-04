@@ -1,14 +1,26 @@
 package com.sistema.agendamento.sistema_agendamento.entity;
 
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-
 import java.util.ArrayList;
 import java.util.List;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 @Entity
-@Table(name = "turmas")
+@Table(name = "turmas", 
+       uniqueConstraints = @UniqueConstraint(columnNames = {"codigo", "semestre", "ano"}))
 public class Turma {
     
     @Id
@@ -16,7 +28,7 @@ public class Turma {
     private Long id;
     
     @NotBlank
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, length = 20)
     private String codigo;
     
     @NotBlank
@@ -91,4 +103,7 @@ private List<Usuario> alunos = new ArrayList<>();
     
     public List<Evento> getEventos() { return eventos; }
     public void setEventos(List<Evento> eventos) { this.eventos = eventos; }
+
+    public List<Usuario> getAlunos() { return alunos; }
+    public void setAlunos(List<Usuario> alunos) { this.alunos = alunos; }
 }

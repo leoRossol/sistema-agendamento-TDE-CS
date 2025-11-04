@@ -2,10 +2,17 @@ package com.sistema.agendamento.sistema_agendamento.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sala_equipamento")
+@Getter
+@Setter
+@AllArgsConstructor
 public class SalaEquipamento {
     
     @Id
@@ -30,30 +37,7 @@ public class SalaEquipamento {
     public SalaEquipamento() {
         this.createdAt = LocalDateTime.now();
     }
-    
-    public SalaEquipamento(Sala sala, Equipamento equipamento, Integer quantidade) {
-        this();
-        this.sala = sala;
-        this.equipamento = equipamento;
-        this.quantidade = quantidade;
-    }
-    
-    // Getters e Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    
-    public Sala getSala() { return sala; }
-    public void setSala(Sala sala) { this.sala = sala; }
-    
-    public Equipamento getEquipamento() { return equipamento; }
-    public void setEquipamento(Equipamento equipamento) { this.equipamento = equipamento; }
-    
-    public Integer getQuantidade() { return quantidade; }
-    public void setQuantidade(Integer quantidade) { this.quantidade = quantidade; }
-    
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    
+
     @Override
     public String toString() {
         return "SalaEquipamento{" +
