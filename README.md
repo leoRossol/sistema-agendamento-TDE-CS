@@ -6,6 +6,7 @@ Sistema de agendamento de salas e recursos educacionais desenvolvido com Spring 
 - Artur Pereira
 - Davi Oliveira
 - Leonardo Rossol
+- Leonardo Monteiro
 - Thiago
 
 ## Tecnologias Utilizadas
