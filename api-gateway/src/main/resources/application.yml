@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        # Route for Reports Service
+        - id: reports-service
+          uri: lb://sistema-agendamento-reports
+          predicates:
+            - Path=/api/**
+          filters:
+            - StripPrefix=0
+
+        # Route for Auth endpoints
+        - id: auth-service
+          uri: lb://sistema-agendamento-reports
+          predicates:
+            - Path=/auth/**
+          filters:
+            - StripPrefix=0
+
+        # Route for Swagger UI
+        - id: swagger-ui
+          uri: lb://sistema-agendamento-reports
+          predicates:
+            - Path=/swagger-ui/**,/v3/api-docs/**,/swagger-ui.html
+          filters:
+            - StripPrefix=0
+
+      # Enable discovery locator to automatically create routes for all services
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+server:
+  port: 8081
+
+# Eureka Client Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.value}
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    reactor.netty: INFO
