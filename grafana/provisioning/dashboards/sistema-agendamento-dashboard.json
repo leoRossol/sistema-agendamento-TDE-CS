@@ -71,6 +71,40 @@
             "legendFormat": "Threads Ativas"
           }
         ]
+      },
+      {
+        "id": 5,
+        "title": "API Gateway - Requisições",
+        "type": "graph",
+        "gridPos": {
+          "x": 0,
+          "y": 16,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "rate(http_server_requests_seconds_count{application=\"api-gateway\"}[1m])",
+            "legendFormat": "{{method}} {{uri}} - {{status}}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "API Gateway - Latência",
+        "type": "graph",
+        "gridPos": {
+          "x": 12,
+          "y": 16,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{application=\"api-gateway\"}[5m])) * 1000",
+            "legendFormat": "{{method}} {{uri}}"
+          }
+        ]
       }
     ],
     "schemaVersion": 16,

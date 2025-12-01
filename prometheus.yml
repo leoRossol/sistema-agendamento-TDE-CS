@@ -15,6 +15,16 @@ scrape_configs:
           application: 'sistema-agendamento-reports'
           environment: 'docker'
 
+  # Job para coletar métricas do API Gateway
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['api-gateway:8081']
+        labels:
+          application: 'api-gateway'
+          environment: 'docker'
+
   # Job para monitorar o próprio Prometheus
   - job_name: 'prometheus'
     static_configs:

@@ -4,13 +4,13 @@ spring:
   cloud:
     gateway:
       routes:
-        # Route for Reports Service
+        # Route for Reports Service (General API)
         - id: reports-service
           uri: lb://sistema-agendamento-reports
           predicates:
             - Path=/api/**
           filters:
-            - StripPrefix=0
+            - StripPrefix=1
 
         # Route for Auth endpoints
         - id: auth-service
@@ -18,7 +18,7 @@ spring:
           predicates:
             - Path=/auth/**
           filters:
-            - StripPrefix=0
+            - 'RewritePath=/auth/(?<segment>.*), /autenticacao/${segment}'
 
         # Route for Swagger UI
         - id: swagger-ui
@@ -53,7 +53,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,info,gateway,prometheus
   endpoint:
     health:
       show-details: always
